@@ -113,6 +113,12 @@ export function QuizModal({
   const normalizedTimerMode = timerMode === 'perQ' ? 'perQuestion' : timerMode;
   const perQuestionSeconds = Math.max(1, parseInt(perQSec || '10'));
   const sessionSeconds = Math.max(60, parseInt(sessionMin || '5') * 60);
+  const clearFlashAutoWrongTimeout = () => {
+    if (flashAutoWrongTimeoutRef.current !== null) {
+      window.clearTimeout(flashAutoWrongTimeoutRef.current);
+      flashAutoWrongTimeoutRef.current = null;
+    }
+  };
 
   useEffect(() => {
     if (mode === 'mc' && currentWord) {
@@ -177,14 +183,6 @@ export function QuizModal({
     wrongWordsRef.current = [...wrongWordsRef.current, currentWord];
     nextQuestion();
   }, [timerOn, normalizedTimerMode, perQuestionLeft, selectedAnswer, mode, currentWord, isAutoWrongPending]);
-
-  useEffect(() => {
-    return () => {
-      if (flashWrongTimeoutRef.current !== null) {
-        window.clearTimeout(flashWrongTimeoutRef.current);
-      }
-    };
-  }, []);
 
   const generateChoices = () => {
     const correctAnswer = answer;
@@ -256,6 +254,7 @@ export function QuizModal({
       handleFlashReveal();
       setIsAutoWrongPending(true);
       flashAutoWrongTimeoutRef.current = window.setTimeout(() => {
+        if (isFinalizedRef.current) return;
         setIsAutoWrongPending(false);
         handleFlashAnswer(false);
       }, 700);
@@ -304,15 +303,14 @@ export function QuizModal({
 
   const handleCloseWithProgressSave = () => {
     if (isFinalizedRef.current) return;
+    clearFlashAutoWrongTimeout();
+    setIsAutoWrongPending(false);
     isFinalizedRef.current = true;
     onProgressSave(buildProgressPayload(false));
   };
 
   const nextQuestion = () => {
-    if (flashAutoWrongTimeoutRef.current) {
-      window.clearTimeout(flashAutoWrongTimeoutRef.current);
-      flashAutoWrongTimeoutRef.current = null;
-    }
+    clearFlashAutoWrongTimeout();
 
     if (currentIndex < words.length - 1) {
       setCurrentIndex(currentIndex + 1);
@@ -329,9 +327,7 @@ export function QuizModal({
 
   useEffect(() => {
     return () => {
-      if (flashAutoWrongTimeoutRef.current) {
-        window.clearTimeout(flashAutoWrongTimeoutRef.current);
-      }
+      clearFlashAutoWrongTimeout();
     };
   }, []);
 
@@ -393,7 +389,7 @@ export function QuizModal({
         {/* Content */}
         <div className="flex-1 overflow-auto p-6 md:p-8">
           {mode === 'flash' ? (
-            <div className="space-y-4 md:space-y-6">
+            <div className="space-y-3 md:space-y-4">
               <div
                 className={`
                   relative rounded-3xl overflow-hidden
@@ -412,8 +408,8 @@ export function QuizModal({
                 <div className="absolute bottom-0 left-0 w-48 h-48 bg-gradient-to-tr from-pink-400/20 to-orange-400/20 rounded-full blur-3xl -ml-24 -mb-24" />
 
                 {/* Content */}
-                <div className="relative z-10 flex flex-col items-center justify-center px-6 py-12 md:px-12 md:py-16 min-h-[320px] md:min-h-[380px]">
-                  <div className="text-center space-y-6 md:space-y-8 w-full max-w-2xl">
+                <div className="relative z-10 flex flex-col items-center justify-center px-5 py-8 md:px-8 md:py-10 min-h-[250px] md:min-h-[300px]">
+                  <div className="text-center space-y-4 md:space-y-5 w-full max-w-2xl">
                     {/* Question */}
                     <div className="text-4xl sm:text-5xl md:text-6xl font-black tracking-tight bg-gradient-to-br from-gray-900 via-gray-700 to-gray-600 bg-clip-text text-transparent leading-tight">
                       {question}
@@ -422,7 +418,7 @@ export function QuizModal({
                     {/* Answer (revealed) */}
                     <div
                       className={`
-                        space-y-4 md:space-y-6 transition-all duration-500 min-h-[96px] md:min-h-[130px]
+                        space-y-3 md:space-y-4 transition-all duration-500 min-h-[72px] md:min-h-[96px]
                         ${isRevealed ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-3'}
                       `}
                     >
@@ -435,7 +431,7 @@ export function QuizModal({
                     {/* Tap hint (not revealed) */}
                     <div
                       className={`
-                        pt-8 md:pt-12 flex flex-col items-center gap-3 transition-opacity duration-300 min-h-[120px] md:min-h-[150px]
+                        pt-4 md:pt-6 flex flex-col items-center gap-2 transition-opacity duration-300 min-h-[88px] md:min-h-[110px]
                         ${isRevealed ? 'opacity-0' : 'opacity-60'}
                       `}
                     >
