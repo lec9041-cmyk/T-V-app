@@ -178,6 +178,14 @@ export function QuizModal({
     nextQuestion();
   }, [timerOn, normalizedTimerMode, perQuestionLeft, selectedAnswer, mode, currentWord, isAutoWrongPending]);
 
+  useEffect(() => {
+    return () => {
+      if (flashWrongTimeoutRef.current !== null) {
+        window.clearTimeout(flashWrongTimeoutRef.current);
+      }
+    };
+  }, []);
+
   const generateChoices = () => {
     const correctAnswer = answer;
     const otherWords = words.filter((w, i) => i !== currentIndex);
@@ -412,18 +420,25 @@ export function QuizModal({
                     </div>
 
                     {/* Answer (revealed) */}
-                    {isRevealed && (
-                      <div className="space-y-4 md:space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                    <div
+                      className={`
+                        space-y-4 md:space-y-6 transition-all duration-500 min-h-[96px] md:min-h-[130px]
+                        ${isRevealed ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-3'}
+                      `}
+                    >
                         <div className="h-px bg-gradient-to-r from-transparent via-gray-300 to-transparent" />
                         <div className="text-2xl sm:text-3xl md:text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600">
                           {answer}
                         </div>
-                      </div>
-                    )}
+                    </div>
 
                     {/* Tap hint (not revealed) */}
-                    {!isRevealed && (
-                      <div className="pt-8 md:pt-12 flex flex-col items-center gap-3 opacity-60">
+                    <div
+                      className={`
+                        pt-8 md:pt-12 flex flex-col items-center gap-3 transition-opacity duration-300 min-h-[120px] md:min-h-[150px]
+                        ${isRevealed ? 'opacity-0' : 'opacity-60'}
+                      `}
+                    >
                         <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center shadow-lg animate-pulse">
                           <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -431,8 +446,7 @@ export function QuizModal({
                           </svg>
                         </div>
                         <p className="text-xs md:text-sm font-semibold text-gray-500">카드를 탭하여 뜻 확인</p>
-                      </div>
-                    )}
+                    </div>
                   </div>
                 </div>
               </div>
