@@ -93,6 +93,7 @@ export function QuizModal({
   const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
   const [isCorrect, setIsCorrect] = useState<boolean | null>(null);
   const [choices, setChoices] = useState<string[]>([]);
+  const [isAutoWrongPending, setIsAutoWrongPending] = useState(false);
   const [perQuestionLeft, setPerQuestionLeft] = useState<number>(0);
   const [sessionLeft, setSessionLeft] = useState<number>(0);
   const solvedCountRef = useRef(0);
@@ -100,6 +101,7 @@ export function QuizModal({
   const wrongCountRef = useRef(0);
   const wrongWordsRef = useRef<Word[]>([]);
   const isFinalizedRef = useRef(false);
+  const flashAutoWrongTimeoutRef = useRef<number | null>(null);
   const [favorites, setFavorites] = useState<Set<string>>(() => {
     const saved = localStorage.getItem('toeic_favorites');
     return saved ? new Set(JSON.parse(saved)) : new Set();
@@ -167,13 +169,14 @@ export function QuizModal({
     if (!timerOn || isFinalizedRef.current) return;
     if (normalizedTimerMode !== 'perQuestion' || perQuestionLeft !== 0) return;
     if (mode === 'mc' && selectedAnswer !== null) return;
+    if (mode === 'flash' && isAutoWrongPending) return;
 
     solvedCountRef.current += 1;
     wrongCountRef.current += 1;
     setWrongCount(wrongCountRef.current);
     wrongWordsRef.current = [...wrongWordsRef.current, currentWord];
     nextQuestion();
-  }, [timerOn, normalizedTimerMode, perQuestionLeft, selectedAnswer, mode, currentWord]);
+  }, [timerOn, normalizedTimerMode, perQuestionLeft, selectedAnswer, mode, currentWord, isAutoWrongPending]);
 
   const generateChoices = () => {
     const correctAnswer = answer;
@@ -224,6 +227,7 @@ export function QuizModal({
   };
 
   const handleFlashAnswer = (knowIt: boolean) => {
+    if (isFinalizedRef.current || isAutoWrongPending) return;
     solvedCountRef.current += 1;
     if (knowIt) {
       correctCountRef.current += 1;
@@ -235,6 +239,22 @@ export function QuizModal({
       wrongWordsRef.current = [...wrongWordsRef.current, currentWord];
     }
     nextQuestion();
+  };
+
+  const handleFlashDontKnow = () => {
+    if (isFinalizedRef.current || isAutoWrongPending) return;
+
+    if (!isRevealed) {
+      handleFlashReveal();
+      setIsAutoWrongPending(true);
+      flashAutoWrongTimeoutRef.current = window.setTimeout(() => {
+        setIsAutoWrongPending(false);
+        handleFlashAnswer(false);
+      }, 700);
+      return;
+    }
+
+    handleFlashAnswer(false);
   };
 
   const handleMCAnswer = (choice: string) => {
@@ -281,9 +301,15 @@ export function QuizModal({
   };
 
   const nextQuestion = () => {
+    if (flashAutoWrongTimeoutRef.current) {
+      window.clearTimeout(flashAutoWrongTimeoutRef.current);
+      flashAutoWrongTimeoutRef.current = null;
+    }
+
     if (currentIndex < words.length - 1) {
       setCurrentIndex(currentIndex + 1);
       setIsRevealed(false);
+      setIsAutoWrongPending(false);
       setSelectedAnswer(null);
       setIsCorrect(null);
     } else {
@@ -292,6 +318,14 @@ export function QuizModal({
       onComplete(buildProgressPayload(true));
     }
   };
+
+  useEffect(() => {
+    return () => {
+      if (flashAutoWrongTimeoutRef.current) {
+        window.clearTimeout(flashAutoWrongTimeoutRef.current);
+      }
+    };
+  }, []);
 
   if (!currentWord) return null;
 
@@ -351,7 +385,7 @@ export function QuizModal({
         {/* Content */}
         <div className="flex-1 overflow-auto p-6 md:p-8">
           {mode === 'flash' ? (
-            <div className="space-y-6 md:space-y-8">
+            <div className="space-y-4 md:space-y-6">
               <div
                 className={`
                   relative rounded-3xl overflow-hidden
@@ -370,7 +404,7 @@ export function QuizModal({
                 <div className="absolute bottom-0 left-0 w-48 h-48 bg-gradient-to-tr from-pink-400/20 to-orange-400/20 rounded-full blur-3xl -ml-24 -mb-24" />
 
                 {/* Content */}
-                <div className="relative z-10 flex flex-col items-center justify-center px-6 py-16 md:px-12 md:py-24">
+                <div className="relative z-10 flex flex-col items-center justify-center px-6 py-12 md:px-12 md:py-16 min-h-[320px] md:min-h-[380px]">
                   <div className="text-center space-y-6 md:space-y-8 w-full max-w-2xl">
                     {/* Question */}
                     <div className="text-4xl sm:text-5xl md:text-6xl font-black tracking-tight bg-gradient-to-br from-gray-900 via-gray-700 to-gray-600 bg-clip-text text-transparent leading-tight">
@@ -403,22 +437,26 @@ export function QuizModal({
                 </div>
               </div>
 
-              {isRevealed && (
-                <div className="grid grid-cols-2 gap-3 md:gap-6 animate-in fade-in slide-in-from-bottom-4 duration-300">
+              <div className="h-20 sm:h-24 md:h-28">
+                <div className="grid grid-cols-2 gap-3 md:gap-6 h-full">
                   <button
-                    onClick={() => handleFlashAnswer(false)}
-                    className="group relative h-20 sm:h-24 md:h-28 rounded-2xl overflow-hidden transition-all duration-300 hover:scale-105 active:scale-95 shadow-lg"
+                    onClick={handleFlashDontKnow}
+                    disabled={isAutoWrongPending}
+                    className="group relative h-full rounded-2xl overflow-hidden transition-all duration-300 hover:scale-105 active:scale-95 shadow-lg disabled:opacity-70 disabled:cursor-not-allowed"
                   >
                     <div className="absolute inset-0 bg-gradient-to-br from-red-50 to-rose-100 opacity-100 group-hover:opacity-90 transition-opacity" />
                     <div className="relative h-full flex flex-col items-center justify-center gap-1.5 md:gap-2">
                       <div className="text-2xl md:text-3xl">😵</div>
-                      <span className="text-base md:text-lg font-bold text-red-700">몰라요</span>
+                      <span className="text-base md:text-lg font-bold text-red-700">
+                        {isAutoWrongPending ? '확인 중...' : '몰라요'}
+                      </span>
                     </div>
                   </button>
 
                   <button
                     onClick={() => handleFlashAnswer(true)}
-                    className="group relative h-20 sm:h-24 md:h-28 rounded-2xl overflow-hidden transition-all duration-300 hover:scale-105 active:scale-95 shadow-lg"
+                    disabled={isAutoWrongPending}
+                    className="group relative h-full rounded-2xl overflow-hidden transition-all duration-300 hover:scale-105 active:scale-95 shadow-lg disabled:opacity-70 disabled:cursor-not-allowed"
                   >
                     <div className="absolute inset-0 bg-gradient-to-br from-emerald-50 to-green-100 opacity-100 group-hover:opacity-90 transition-opacity" />
                     <div className="relative h-full flex flex-col items-center justify-center gap-1.5 md:gap-2">
@@ -427,7 +465,7 @@ export function QuizModal({
                     </div>
                   </button>
                 </div>
-              )}
+              </div>
             </div>
           ) : mode === 'mc' ? (
             <div className="space-y-6 md:space-y-8">
