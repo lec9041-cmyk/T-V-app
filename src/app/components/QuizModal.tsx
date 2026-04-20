@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Button } from './ui/button';
 import { Progress } from './ui/progress';
 import { Badge } from './ui/badge';
@@ -49,11 +49,27 @@ interface QuizModalProps {
   words: Word[];
   mode: 'flash' | 'mc' | 'sa';
   direction: 'en2ko' | 'ko2en';
-  onClose: () => void;
-  onComplete: (stats: { correct: number; total: number; xp: number; wrongWords?: Word[] }) => void;
+  onProgressSave: (stats: {
+    solvedCount: number;
+    correctCount: number;
+    wrongCount: number;
+    wrongWords: Word[];
+    completed: boolean;
+    currentIndex: number;
+    remainingWords: Word[];
+  }) => void;
+  onComplete: (stats: {
+    solvedCount: number;
+    correctCount: number;
+    wrongCount: number;
+    wrongWords: Word[];
+    completed: boolean;
+    currentIndex: number;
+    remainingWords: Word[];
+  }) => void;
 }
 
-export function QuizModal({ words, mode, direction, onClose, onComplete }: QuizModalProps) {
+export function QuizModal({ words, mode, direction, onProgressSave, onComplete }: QuizModalProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [score, setScore] = useState(0);
   const [wrongCount, setWrongCount] = useState(0);
@@ -61,7 +77,11 @@ export function QuizModal({ words, mode, direction, onClose, onComplete }: QuizM
   const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
   const [isCorrect, setIsCorrect] = useState<boolean | null>(null);
   const [choices, setChoices] = useState<string[]>([]);
-  const [wrongWordsList, setWrongWordsList] = useState<Word[]>([]);
+  const solvedCountRef = useRef(0);
+  const correctCountRef = useRef(0);
+  const wrongCountRef = useRef(0);
+  const wrongWordsRef = useRef<Word[]>([]);
+  const isFinalizedRef = useRef(false);
   const [favorites, setFavorites] = useState<Set<string>>(() => {
     const saved = localStorage.getItem('toeic_favorites');
     return saved ? new Set(JSON.parse(saved)) : new Set();
@@ -126,32 +146,60 @@ export function QuizModal({ words, mode, direction, onClose, onComplete }: QuizM
   };
 
   const handleFlashAnswer = (knowIt: boolean) => {
+    solvedCountRef.current += 1;
     if (knowIt) {
-      setScore(score + 1);
+      correctCountRef.current += 1;
+      setScore(correctCountRef.current);
     } else {
-      setWrongCount(wrongCount + 1);
+      wrongCountRef.current += 1;
+      setWrongCount(wrongCountRef.current);
       // Record wrong word
-      setWrongWordsList([...wrongWordsList, currentWord]);
+      wrongWordsRef.current = [...wrongWordsRef.current, currentWord];
     }
     nextQuestion();
   };
 
   const handleMCAnswer = (choice: string) => {
+    solvedCountRef.current += 1;
     setSelectedAnswer(choice);
     const correct = choice === answer;
     setIsCorrect(correct);
 
     if (correct) {
-      setScore(score + 1);
+      correctCountRef.current += 1;
+      setScore(correctCountRef.current);
     } else {
-      setWrongCount(wrongCount + 1);
+      wrongCountRef.current += 1;
+      setWrongCount(wrongCountRef.current);
       // Record wrong word
-      setWrongWordsList([...wrongWordsList, currentWord]);
+      wrongWordsRef.current = [...wrongWordsRef.current, currentWord];
     }
 
     setTimeout(() => {
       nextQuestion();
     }, 1200);
+  };
+
+  const buildProgressPayload = (completed: boolean) => {
+    const hasAnsweredCurrent = mode === 'mc' && selectedAnswer !== null;
+    const resumeIndex = completed ? words.length : currentIndex + (hasAnsweredCurrent ? 1 : 0);
+    const remainingWords = words.slice(resumeIndex);
+
+    return {
+      solvedCount: solvedCountRef.current,
+      correctCount: correctCountRef.current,
+      wrongCount: wrongCountRef.current,
+      wrongWords: wrongWordsRef.current,
+      completed,
+      currentIndex: resumeIndex,
+      remainingWords,
+    };
+  };
+
+  const handleCloseWithProgressSave = () => {
+    if (isFinalizedRef.current) return;
+    isFinalizedRef.current = true;
+    onProgressSave(buildProgressPayload(false));
   };
 
   const nextQuestion = () => {
@@ -161,14 +209,9 @@ export function QuizModal({ words, mode, direction, onClose, onComplete }: QuizM
       setSelectedAnswer(null);
       setIsCorrect(null);
     } else {
-      // Quiz complete
-      const xpGained = score * 10;
-      onComplete({
-        correct: score,
-        total: words.length,
-        xp: xpGained,
-        wrongWords: wrongWordsList,
-      });
+      if (isFinalizedRef.current) return;
+      isFinalizedRef.current = true;
+      onComplete(buildProgressPayload(true));
     }
   };
 
@@ -197,7 +240,7 @@ export function QuizModal({ words, mode, direction, onClose, onComplete }: QuizM
               </div>
             </div>
             <button
-              onClick={onClose}
+              onClick={handleCloseWithProgressSave}
               className="p-2 rounded-full hover:bg-gray-100 transition-colors duration-200 ml-4"
             >
               <X className="w-5 h-5 text-gray-500" />
