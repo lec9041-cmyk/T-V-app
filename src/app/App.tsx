@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Button } from './components/ui/button';
 import { Progress } from './components/ui/progress';
 import { Badge } from './components/ui/badge';
@@ -48,6 +48,7 @@ interface Word {
   english: string;
   korean: string;
   index: number;
+  mistakes?: number;
 }
 
 interface Stats {
@@ -122,7 +123,7 @@ export default function App() {
     orderMode: 'random',
     shuffleChoices: true,
     timerOn: false,
-    timerMode: 'perQ',
+    timerMode: 'perQuestion',
     perQSec: '10',
     sessionMin: '5',
     autoNextMs: '1200',
@@ -151,7 +152,10 @@ export default function App() {
     if (wrongLog) {
       try {
         const log = JSON.parse(wrongLog);
-        setWrongWords(log);
+        const normalized = Array.isArray(log)
+          ? log.map((word) => ({ ...word, mistakes: word.mistakes || 1 }))
+          : [];
+        setWrongWords(normalized);
       } catch (e) {
         setWrongWords([]);
       }
@@ -173,6 +177,12 @@ export default function App() {
       setCount(data.count?.toString() || '30');
       setSelectedDays(data.days || [1]);
       setSelectedRanges(data.ranges || ['core', 'basic', '800', '900']);
+      if (data.settings) {
+        setSettings({
+          ...settings,
+          ...data.settings,
+        });
+      }
 
       // Start quiz with remaining words
       if (data.remainingWords && data.remainingWords.length > 0) {
@@ -195,7 +205,11 @@ export default function App() {
       return;
     }
 
-    setQuizWords(wrongWords.slice(0, Math.min(30, wrongWords.length)));
+    setQuizWords(
+      wrongWords
+        .slice(0, Math.min(30, wrongWords.length))
+        .map(({ mistakes, ...word }) => word)
+    );
     setShowQuiz(true);
   };
 
@@ -383,10 +397,32 @@ export default function App() {
   const mergeWrongWords = (newWrongWords: Word[]) => {
     if (!newWrongWords || newWrongWords.length === 0) return;
 
-    const existingWrong = wrongWords;
-    const merged = [...existingWrong, ...newWrongWords];
-    const uniqueWrong = merged.filter((word, index, self) =>
-      index === self.findIndex((w) => w.english === word.english)
+    const countMap = new Map<string, Word>();
+
+    wrongWords.forEach((word) => {
+      countMap.set(word.english, {
+        ...word,
+        mistakes: word.mistakes || 1,
+      });
+    });
+
+    newWrongWords.forEach((word) => {
+      const existing = countMap.get(word.english);
+      if (existing) {
+        countMap.set(word.english, {
+          ...existing,
+          mistakes: (existing.mistakes || 1) + 1,
+        });
+      } else {
+        countMap.set(word.english, {
+          ...word,
+          mistakes: 1,
+        });
+      }
+    });
+
+    const uniqueWrong = Array.from(countMap.values()).sort(
+      (a, b) => (b.mistakes || 1) - (a.mistakes || 1)
     );
 
     setWrongWords(uniqueWrong);
@@ -406,6 +442,7 @@ export default function App() {
       count,
       days: selectedDays,
       ranges: selectedRanges,
+      settings,
       currentIndex: progress.currentIndex,
       solvedCount: progress.solvedCount,
       correctCount: progress.correctCount,
@@ -435,6 +472,37 @@ export default function App() {
 
     setShowQuiz(false);
   };
+
+  const wrongWordItems = useMemo(() => {
+    return [...wrongWords]
+      .sort((a, b) => (b.mistakes || 1) - (a.mistakes || 1))
+      .slice(0, 5)
+      .map((word) => ({
+      key: `${word.day}-${word.no}-${word.english}`,
+      word: word.english,
+      meaning: word.korean,
+      mistakes: word.mistakes || 1,
+    }));
+  }, [wrongWords]);
+
+  const weaknessItems = useMemo(() => {
+    const byCategory = new Map<string, number>();
+    wrongWords.forEach((word) => {
+      const category = DAY_CATEGORIES[word.day] || `DAY ${word.day}`;
+      byCategory.set(category, (byCategory.get(category) || 0) + 1);
+    });
+
+    const sorted = Array.from(byCategory.entries())
+      .map(([label, count], i) => ({ label, count, color: ['blue', 'purple', 'orange', 'red'][i % 4] }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 4);
+
+    const maxCount = Math.max(...sorted.map((item) => item.count), 1);
+    return sorted.map((item) => ({
+      ...item,
+      intensity: Math.max(10, Math.round((item.count / maxCount) * 100)),
+    }));
+  }, [wrongWords]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-indigo-50/40 pb-24 md:pb-8">
@@ -1001,16 +1069,13 @@ export default function App() {
 
             {/* Weakness Analysis */}
             <div className="rounded-2xl p-5 bg-white border border-gray-200 shadow-sm">
-              <div className="text-sm font-semibold text-gray-700 mb-4">취약 영역 분석</div>
+              <div className="text-sm font-semibold text-gray-700 mb-4">오답 많은 영역</div>
               <div className="space-y-3">
-                {[
-                  { label: '핵심 (1-40)', accuracy: 65, color: 'blue' },
-                  { label: '기초 (41-68)', accuracy: 78, color: 'purple' },
-                  { label: '800+ (69-136)', accuracy: 72, color: 'orange' },
-                  { label: '900+ (137~)', accuracy: 58, color: 'red' },
-                ].sort((a, b) => a.accuracy - b.accuracy).map((item, i) => (
+                {weaknessItems.length === 0 ? (
+                  <div className="text-sm text-gray-500 py-4 text-center">오답 데이터가 쌓이면 영역별 분포가 표시됩니다.</div>
+                ) : weaknessItems.map((item, i) => (
                   <div key={i} className="flex items-center gap-3">
-                    <div className="w-24 text-xs font-medium text-gray-700">{item.label}</div>
+                    <div className="w-24 text-xs font-medium text-gray-700 truncate">{item.label}</div>
                     <div className="flex-1 bg-gray-100 rounded-full h-6 overflow-hidden">
                       <div
                         className={`h-full rounded-full transition-all duration-500 flex items-center justify-end pr-2 ${
@@ -1019,9 +1084,9 @@ export default function App() {
                           item.color === 'orange' ? 'bg-orange-500' :
                           'bg-red-500'
                         }`}
-                        style={{ width: `${item.accuracy}%` }}
+                        style={{ width: `${item.intensity}%` }}
                       >
-                        <span className="text-xs font-bold text-white">{item.accuracy}%</span>
+                        <span className="text-xs font-bold text-white">{item.count}회</span>
                       </div>
                     </div>
                   </div>
@@ -1038,15 +1103,11 @@ export default function App() {
                 </button>
               </div>
               <div className="space-y-2">
-                {[
-                  { word: 'accomplish', meaning: '성취하다', mistakes: 5 },
-                  { word: 'beneficial', meaning: '유익한', mistakes: 4 },
-                  { word: 'proficient', meaning: '능숙한', mistakes: 3 },
-                  { word: 'implement', meaning: '시행하다', mistakes: 3 },
-                  { word: 'acquire', meaning: '획득하다', mistakes: 2 },
-                ].map((item, i) => (
+                {wrongWordItems.length === 0 ? (
+                  <div className="text-sm text-gray-500 py-4 text-center">아직 저장된 오답이 없습니다.</div>
+                ) : wrongWordItems.map((item, i) => (
                   <div
-                    key={i}
+                    key={item.key}
                     className="flex items-center justify-between p-3 rounded-xl bg-gray-50 border border-gray-100"
                   >
                     <div className="flex-1">
@@ -1122,6 +1183,51 @@ export default function App() {
                   </div>
                   <Switch checked={settings.timerOn} onCheckedChange={(v) => setSettings({...settings, timerOn: v})} />
                 </div>
+
+                {settings.timerOn && (
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <div className="space-y-2">
+                      <div className="text-xs md:text-sm text-gray-500">타이머 모드</div>
+                      <Select value={settings.timerMode} onValueChange={(v) => setSettings({...settings, timerMode: v})}>
+                        <SelectTrigger className="h-10 rounded-xl text-xs md:text-sm">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="perQuestion">문항별</SelectItem>
+                          <SelectItem value="session">세션 전체</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <div className="text-xs md:text-sm text-gray-500">문항 제한(초)</div>
+                      <Select value={settings.perQSec} onValueChange={(v) => setSettings({...settings, perQSec: v})}>
+                        <SelectTrigger className="h-10 rounded-xl text-xs md:text-sm">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="5">5초</SelectItem>
+                          <SelectItem value="10">10초</SelectItem>
+                          <SelectItem value="15">15초</SelectItem>
+                          <SelectItem value="20">20초</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <div className="text-xs md:text-sm text-gray-500">세션 제한(분)</div>
+                      <Select value={settings.sessionMin} onValueChange={(v) => setSettings({...settings, sessionMin: v})}>
+                        <SelectTrigger className="h-10 rounded-xl text-xs md:text-sm">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="3">3분</SelectItem>
+                          <SelectItem value="5">5분</SelectItem>
+                          <SelectItem value="10">10분</SelectItem>
+                          <SelectItem value="15">15분</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -1161,6 +1267,11 @@ export default function App() {
           words={quizWords}
           mode={mode as 'flash' | 'mc' | 'sa'}
           direction={direction as 'en2ko' | 'ko2en'}
+          shuffleChoices={settings.shuffleChoices}
+          timerOn={settings.timerOn}
+          timerMode={settings.timerMode}
+          perQSec={settings.perQSec}
+          sessionMin={settings.sessionMin}
           onProgressSave={handleQuizProgressSave}
           onComplete={handleQuizComplete}
         />
