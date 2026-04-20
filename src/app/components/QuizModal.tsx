@@ -77,6 +77,8 @@ export function QuizModal({ words, mode, direction, onProgressSave, onComplete }
   const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
   const [isCorrect, setIsCorrect] = useState<boolean | null>(null);
   const [choices, setChoices] = useState<string[]>([]);
+  const [isFlashAutoSubmittingWrong, setIsFlashAutoSubmittingWrong] = useState(false);
+  const flashWrongTimeoutRef = useRef<number | null>(null);
   const solvedCountRef = useRef(0);
   const correctCountRef = useRef(0);
   const wrongCountRef = useRef(0);
@@ -96,6 +98,14 @@ export function QuizModal({ words, mode, direction, onProgressSave, onComplete }
       generateChoices();
     }
   }, [currentIndex, mode]);
+
+  useEffect(() => {
+    return () => {
+      if (flashWrongTimeoutRef.current !== null) {
+        window.clearTimeout(flashWrongTimeoutRef.current);
+      }
+    };
+  }, []);
 
   const generateChoices = () => {
     const correctAnswer = answer;
@@ -146,6 +156,7 @@ export function QuizModal({ words, mode, direction, onProgressSave, onComplete }
   };
 
   const handleFlashAnswer = (knowIt: boolean) => {
+    if (isFlashAutoSubmittingWrong) return;
     solvedCountRef.current += 1;
     if (knowIt) {
       correctCountRef.current += 1;
@@ -157,6 +168,21 @@ export function QuizModal({ words, mode, direction, onProgressSave, onComplete }
       wrongWordsRef.current = [...wrongWordsRef.current, currentWord];
     }
     nextQuestion();
+  };
+
+  const handleFlashDontKnow = () => {
+    if (isFlashAutoSubmittingWrong) return;
+    if (isRevealed) {
+      handleFlashAnswer(false);
+      return;
+    }
+
+    handleFlashReveal();
+    setIsFlashAutoSubmittingWrong(true);
+    flashWrongTimeoutRef.current = window.setTimeout(() => {
+      setIsFlashAutoSubmittingWrong(false);
+      handleFlashAnswer(false);
+    }, 550);
   };
 
   const handleMCAnswer = (choice: string) => {
@@ -203,9 +229,15 @@ export function QuizModal({ words, mode, direction, onProgressSave, onComplete }
   };
 
   const nextQuestion = () => {
+    if (flashWrongTimeoutRef.current !== null) {
+      window.clearTimeout(flashWrongTimeoutRef.current);
+      flashWrongTimeoutRef.current = null;
+    }
+
     if (currentIndex < words.length - 1) {
       setCurrentIndex(currentIndex + 1);
       setIsRevealed(false);
+      setIsFlashAutoSubmittingWrong(false);
       setSelectedAnswer(null);
       setIsCorrect(null);
     } else {
@@ -276,7 +308,7 @@ export function QuizModal({ words, mode, direction, onProgressSave, onComplete }
                 <div className="absolute bottom-0 left-0 w-48 h-48 bg-gradient-to-tr from-pink-400/20 to-orange-400/20 rounded-full blur-3xl -ml-24 -mb-24" />
 
                 {/* Content */}
-                <div className="relative z-10 flex flex-col items-center justify-center px-6 py-16 md:px-12 md:py-24">
+                <div className="relative z-10 flex flex-col items-center justify-center px-6 py-16 md:px-12 md:py-24 min-h-[420px] md:min-h-[500px]">
                   <div className="text-center space-y-6 md:space-y-8 w-full max-w-2xl">
                     {/* Question */}
                     <div className="text-4xl sm:text-5xl md:text-6xl font-black tracking-tight bg-gradient-to-br from-gray-900 via-gray-700 to-gray-600 bg-clip-text text-transparent leading-tight">
@@ -284,18 +316,25 @@ export function QuizModal({ words, mode, direction, onProgressSave, onComplete }
                     </div>
 
                     {/* Answer (revealed) */}
-                    {isRevealed && (
-                      <div className="space-y-4 md:space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                    <div
+                      className={`
+                        space-y-4 md:space-y-6 transition-all duration-500 min-h-[96px] md:min-h-[130px]
+                        ${isRevealed ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-3'}
+                      `}
+                    >
                         <div className="h-px bg-gradient-to-r from-transparent via-gray-300 to-transparent" />
                         <div className="text-2xl sm:text-3xl md:text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600">
                           {answer}
                         </div>
-                      </div>
-                    )}
+                    </div>
 
                     {/* Tap hint (not revealed) */}
-                    {!isRevealed && (
-                      <div className="pt-8 md:pt-12 flex flex-col items-center gap-3 opacity-60">
+                    <div
+                      className={`
+                        pt-8 md:pt-12 flex flex-col items-center gap-3 transition-opacity duration-300 min-h-[120px] md:min-h-[150px]
+                        ${isRevealed ? 'opacity-0' : 'opacity-60'}
+                      `}
+                    >
                         <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center shadow-lg animate-pulse">
                           <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -303,17 +342,17 @@ export function QuizModal({ words, mode, direction, onProgressSave, onComplete }
                           </svg>
                         </div>
                         <p className="text-xs md:text-sm font-semibold text-gray-500">카드를 탭하여 뜻 확인</p>
-                      </div>
-                    )}
+                    </div>
                   </div>
                 </div>
               </div>
 
-              {isRevealed && (
-                <div className="grid grid-cols-2 gap-3 md:gap-6 animate-in fade-in slide-in-from-bottom-4 duration-300">
+              <div className="min-h-[80px] sm:min-h-[96px] md:min-h-[112px]">
+                <div className="grid grid-cols-2 gap-3 md:gap-6">
                   <button
-                    onClick={() => handleFlashAnswer(false)}
-                    className="group relative h-20 sm:h-24 md:h-28 rounded-2xl overflow-hidden transition-all duration-300 hover:scale-105 active:scale-95 shadow-lg"
+                    onClick={handleFlashDontKnow}
+                    disabled={isFlashAutoSubmittingWrong}
+                    className="group relative h-20 sm:h-24 md:h-28 rounded-2xl overflow-hidden transition-all duration-300 hover:scale-105 active:scale-95 shadow-lg disabled:opacity-70 disabled:cursor-not-allowed"
                   >
                     <div className="absolute inset-0 bg-gradient-to-br from-red-50 to-rose-100 opacity-100 group-hover:opacity-90 transition-opacity" />
                     <div className="relative h-full flex flex-col items-center justify-center gap-1.5 md:gap-2">
@@ -324,7 +363,8 @@ export function QuizModal({ words, mode, direction, onProgressSave, onComplete }
 
                   <button
                     onClick={() => handleFlashAnswer(true)}
-                    className="group relative h-20 sm:h-24 md:h-28 rounded-2xl overflow-hidden transition-all duration-300 hover:scale-105 active:scale-95 shadow-lg"
+                    disabled={isFlashAutoSubmittingWrong}
+                    className="group relative h-20 sm:h-24 md:h-28 rounded-2xl overflow-hidden transition-all duration-300 hover:scale-105 active:scale-95 shadow-lg disabled:opacity-70 disabled:cursor-not-allowed"
                   >
                     <div className="absolute inset-0 bg-gradient-to-br from-emerald-50 to-green-100 opacity-100 group-hover:opacity-90 transition-opacity" />
                     <div className="relative h-full flex flex-col items-center justify-center gap-1.5 md:gap-2">
@@ -333,7 +373,7 @@ export function QuizModal({ words, mode, direction, onProgressSave, onComplete }
                     </div>
                   </button>
                 </div>
-              )}
+              </div>
             </div>
           ) : mode === 'mc' ? (
             <div className="space-y-6 md:space-y-8">
