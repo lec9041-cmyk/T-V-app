@@ -1,0 +1,21 @@
+# PNG 아이콘 생성 안내
+
+아래 방법 중 하나로 PNG 아이콘을 생성하세요:
+
+## 방법 1: 온라인 도구 사용 (추천)
+1. https://realfavicongenerator.net/ 접속
+2. icon.svg 파일 업로드
+3. 192x192, 512x512 PNG 다운로드
+4. public/ 폴더에 icon-192.png, icon-512.png로 저장
+
+## 방법 2: ImageMagick 사용
+```bash
+# icon.svg를 PNG로 변환
+convert -background none -resize 192x192 icon.svg icon-192.png
+convert -background none -resize 512x512 icon.svg icon-512.png
+```
+
+## 방법 3: 온라인 SVG to PNG
+https://cloudconvert.com/svg-to-png 에서 변환
+
+생성 후 이 파일은 삭제하세요.

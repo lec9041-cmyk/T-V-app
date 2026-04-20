@@ -1,0 +1,19 @@
+{
+  "name": "TOEIC Master - 토익 단어 암기",
+  "short_name": "TOEIC Master",
+  "description": "세련되고 모던한 토익 단어 학습 앱",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#3b82f6",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["education", "productivity"]
+}
