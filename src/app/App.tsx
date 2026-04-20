@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Separator } from './components/ui/separator';
 import { QuizModal } from './components/QuizModal';
 import { DaySelector } from './components/DaySelector';
-import { Play, RotateCcw, Target, TrendingUp, Zap, Volume2, Timer, RefreshCw, Eye, Calendar as CalendarIcon, Home, BookOpen, BarChart3, Settings as SettingsIcon, ChevronDown, Check } from 'lucide-react';
+import { Play, RotateCcw, Target, TrendingUp, Zap, Volume2, Timer, RefreshCw, Eye, Calendar as CalendarIcon, Home, BookOpen, BarChart3, Settings as SettingsIcon, ChevronDown, Check, Star } from 'lucide-react';
 
 const DAY_CATEGORIES: { [key: number]: string } = {
   1: '채용',
@@ -54,10 +54,21 @@ interface Stats {
   todayCount: number;
   streak: number;
   totalSolved: number;
+  totalCorrect: number;
   xp: number;
   level: number;
   lastStudyDate: string;
   dailyLog: { [date: string]: number };
+}
+
+interface QuizSessionProgress {
+  solvedCount: number;
+  correctCount: number;
+  wrongCount: number;
+  wrongWords: Word[];
+  completed: boolean;
+  currentIndex: number;
+  remainingWords: Word[];
 }
 
 interface Settings {
@@ -84,6 +95,7 @@ export default function App() {
     todayCount: 0,
     streak: 0,
     totalSolved: 0,
+    totalCorrect: 0,
     xp: 0,
     level: 1,
     lastStudyDate: '',
@@ -190,7 +202,17 @@ export default function App() {
   const loadStats = () => {
     const savedStats = localStorage.getItem('toeic_stats_v2');
     if (savedStats) {
-      setStats(JSON.parse(savedStats));
+      const parsed = JSON.parse(savedStats);
+      setStats({
+        todayCount: parsed.todayCount || 0,
+        streak: parsed.streak || 0,
+        totalSolved: parsed.totalSolved || 0,
+        totalCorrect: parsed.totalCorrect || 0,
+        xp: parsed.xp || 0,
+        level: parsed.level || 1,
+        lastStudyDate: parsed.lastStudyDate || '',
+        dailyLog: parsed.dailyLog || {},
+      });
     }
   };
 
@@ -325,14 +347,12 @@ export default function App() {
     setShowQuiz(true);
   };
 
-  const handleQuizComplete = (quizStats: {
-    correct: number;
-    total: number;
-    xp: number;
-    wrongWords?: Word[];
-  }) => {
+  const applySessionStats = (progress: QuizSessionProgress) => {
+    if (progress.solvedCount <= 0) return;
+
     const today = new Date().toISOString().split('T')[0];
-    const newXP = stats.xp + quizStats.xp;
+    const gainedXP = progress.correctCount * 10;
+    const newXP = stats.xp + gainedXP;
     const xpNeeded = calculateXPForLevel(stats.level);
     let newLevel = stats.level;
 
@@ -344,31 +364,70 @@ export default function App() {
 
     const newStats = {
       ...stats,
-      todayCount: stats.todayCount + quizStats.total,
+      todayCount: stats.todayCount + progress.solvedCount,
       streak: newStreak,
-      totalSolved: stats.totalSolved + quizStats.total,
+      totalSolved: stats.totalSolved + progress.solvedCount,
+      totalCorrect: stats.totalCorrect + progress.correctCount,
       xp: newXP,
       level: newLevel,
       lastStudyDate: today,
       dailyLog: {
         ...stats.dailyLog,
-        [today]: (stats.dailyLog[today] || 0) + quizStats.total,
+        [today]: (stats.dailyLog[today] || 0) + progress.solvedCount,
       },
     };
 
     saveStats(newStats);
+  };
 
-    // Save wrong words
-    if (quizStats.wrongWords && quizStats.wrongWords.length > 0) {
-      const existingWrong = wrongWords;
-      const newWrong = [...existingWrong, ...quizStats.wrongWords];
-      // Remove duplicates by english word
-      const uniqueWrong = newWrong.filter((word, index, self) =>
-        index === self.findIndex((w) => w.english === word.english)
-      );
-      setWrongWords(uniqueWrong);
-      localStorage.setItem('toeic_wrong_log_v1', JSON.stringify(uniqueWrong));
+  const mergeWrongWords = (newWrongWords: Word[]) => {
+    if (!newWrongWords || newWrongWords.length === 0) return;
+
+    const existingWrong = wrongWords;
+    const merged = [...existingWrong, ...newWrongWords];
+    const uniqueWrong = merged.filter((word, index, self) =>
+      index === self.findIndex((w) => w.english === word.english)
+    );
+
+    setWrongWords(uniqueWrong);
+    localStorage.setItem('toeic_wrong_log_v1', JSON.stringify(uniqueWrong));
+  };
+
+  const saveResumeData = (progress: QuizSessionProgress) => {
+    if (progress.remainingWords.length === 0) {
+      localStorage.removeItem('toeic_resume_v1');
+      setHasResumeData(false);
+      return;
     }
+
+    const resumePayload = {
+      mode,
+      direction,
+      count,
+      days: selectedDays,
+      ranges: selectedRanges,
+      currentIndex: progress.currentIndex,
+      solvedCount: progress.solvedCount,
+      correctCount: progress.correctCount,
+      wrongCount: progress.wrongCount,
+      remainingWords: progress.remainingWords,
+      savedAt: new Date().toISOString(),
+    };
+
+    localStorage.setItem('toeic_resume_v1', JSON.stringify(resumePayload));
+    setHasResumeData(true);
+  };
+
+  const handleQuizProgressSave = (progress: QuizSessionProgress) => {
+    applySessionStats(progress);
+    mergeWrongWords(progress.wrongWords);
+    saveResumeData(progress);
+    setShowQuiz(false);
+  };
+
+  const handleQuizComplete = (progress: QuizSessionProgress) => {
+    applySessionStats(progress);
+    mergeWrongWords(progress.wrongWords);
 
     // Clear resume data on completion
     localStorage.removeItem('toeic_resume_v1');
@@ -1102,7 +1161,7 @@ export default function App() {
           words={quizWords}
           mode={mode as 'flash' | 'mc' | 'sa'}
           direction={direction as 'en2ko' | 'ko2en'}
-          onClose={() => setShowQuiz(false)}
+          onProgressSave={handleQuizProgressSave}
           onComplete={handleQuizComplete}
         />
       )}
