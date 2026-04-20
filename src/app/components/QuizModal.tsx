@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Button } from './ui/button';
 import { Progress } from './ui/progress';
 import { Badge } from './ui/badge';
@@ -49,11 +49,43 @@ interface QuizModalProps {
   words: Word[];
   mode: 'flash' | 'mc' | 'sa';
   direction: 'en2ko' | 'ko2en';
-  onClose: () => void;
-  onComplete: (stats: { correct: number; total: number; xp: number; wrongWords?: Word[] }) => void;
+  shuffleChoices: boolean;
+  timerOn: boolean;
+  timerMode: string;
+  perQSec: string;
+  sessionMin: string;
+  onProgressSave: (stats: {
+    solvedCount: number;
+    correctCount: number;
+    wrongCount: number;
+    wrongWords: Word[];
+    completed: boolean;
+    currentIndex: number;
+    remainingWords: Word[];
+  }) => void;
+  onComplete: (stats: {
+    solvedCount: number;
+    correctCount: number;
+    wrongCount: number;
+    wrongWords: Word[];
+    completed: boolean;
+    currentIndex: number;
+    remainingWords: Word[];
+  }) => void;
 }
 
-export function QuizModal({ words, mode, direction, onClose, onComplete }: QuizModalProps) {
+export function QuizModal({
+  words,
+  mode,
+  direction,
+  shuffleChoices,
+  timerOn,
+  timerMode,
+  perQSec,
+  sessionMin,
+  onProgressSave,
+  onComplete,
+}: QuizModalProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [score, setScore] = useState(0);
   const [wrongCount, setWrongCount] = useState(0);
@@ -61,7 +93,13 @@ export function QuizModal({ words, mode, direction, onClose, onComplete }: QuizM
   const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
   const [isCorrect, setIsCorrect] = useState<boolean | null>(null);
   const [choices, setChoices] = useState<string[]>([]);
-  const [wrongWordsList, setWrongWordsList] = useState<Word[]>([]);
+  const [perQuestionLeft, setPerQuestionLeft] = useState<number>(0);
+  const [sessionLeft, setSessionLeft] = useState<number>(0);
+  const solvedCountRef = useRef(0);
+  const correctCountRef = useRef(0);
+  const wrongCountRef = useRef(0);
+  const wrongWordsRef = useRef<Word[]>([]);
+  const isFinalizedRef = useRef(false);
   const [favorites, setFavorites] = useState<Set<string>>(() => {
     const saved = localStorage.getItem('toeic_favorites');
     return saved ? new Set(JSON.parse(saved)) : new Set();
@@ -70,12 +108,72 @@ export function QuizModal({ words, mode, direction, onClose, onComplete }: QuizM
   const currentWord = words[currentIndex];
   const question = direction === 'en2ko' ? currentWord?.english : currentWord?.korean;
   const answer = direction === 'en2ko' ? currentWord?.korean : currentWord?.english;
+  const normalizedTimerMode = timerMode === 'perQ' ? 'perQuestion' : timerMode;
+  const perQuestionSeconds = Math.max(1, parseInt(perQSec || '10'));
+  const sessionSeconds = Math.max(60, parseInt(sessionMin || '5') * 60);
 
   useEffect(() => {
     if (mode === 'mc' && currentWord) {
       generateChoices();
     }
-  }, [currentIndex, mode]);
+  }, [currentIndex, mode, shuffleChoices]);
+
+  useEffect(() => {
+    if (!timerOn) return;
+    if (normalizedTimerMode === 'session') {
+      setSessionLeft(sessionSeconds);
+    }
+  }, [timerOn, normalizedTimerMode, sessionSeconds]);
+
+  useEffect(() => {
+    if (!timerOn || normalizedTimerMode !== 'perQuestion') return;
+    setPerQuestionLeft(perQuestionSeconds);
+  }, [timerOn, normalizedTimerMode, perQuestionSeconds, currentIndex]);
+
+  useEffect(() => {
+    if (!timerOn || normalizedTimerMode !== 'session') return;
+    if (sessionLeft <= 0) return;
+
+    const intervalId = window.setInterval(() => {
+      setSessionLeft((prev) => Math.max(prev - 1, 0));
+    }, 1000);
+
+    return () => window.clearInterval(intervalId);
+  }, [timerOn, normalizedTimerMode, sessionLeft]);
+
+  useEffect(() => {
+    if (!timerOn || normalizedTimerMode !== 'perQuestion') return;
+    if (perQuestionLeft <= 0) return;
+
+    const intervalId = window.setInterval(() => {
+      setPerQuestionLeft((prev) => Math.max(prev - 1, 0));
+    }, 1000);
+
+    return () => window.clearInterval(intervalId);
+  }, [timerOn, normalizedTimerMode, perQuestionLeft]);
+
+  useEffect(() => {
+    if (!timerOn || isFinalizedRef.current) return;
+
+    if (normalizedTimerMode === 'session' && sessionLeft === 0) {
+      isFinalizedRef.current = true;
+      // Session 타이머 만료는 "완주"가 아니라 "중간 저장 후 종료" 정책으로 처리한다.
+      // 남은 문제는 toeic_resume_v1에 저장되어 이어하기로 재개할 수 있다.
+      onProgressSave(buildProgressPayload(false));
+    }
+  }, [timerOn, normalizedTimerMode, sessionLeft]);
+
+  useEffect(() => {
+    if (!timerOn || isFinalizedRef.current) return;
+    if (normalizedTimerMode !== 'perQuestion' || perQuestionLeft !== 0) return;
+    if (mode === 'mc' && selectedAnswer !== null) return;
+
+    solvedCountRef.current += 1;
+    wrongCountRef.current += 1;
+    setWrongCount(wrongCountRef.current);
+    wrongWordsRef.current = [...wrongWordsRef.current, currentWord];
+    nextQuestion();
+  }, [timerOn, normalizedTimerMode, perQuestionLeft, selectedAnswer, mode, currentWord]);
 
   const generateChoices = () => {
     const correctAnswer = answer;
@@ -86,7 +184,7 @@ export function QuizModal({ words, mode, direction, onClose, onComplete }: QuizM
       .map(w => direction === 'en2ko' ? w.korean : w.english);
 
     const allChoices = [correctAnswer, ...randomWords];
-    setChoices(allChoices.sort(() => Math.random() - 0.5));
+    setChoices(shuffleChoices ? allChoices.sort(() => Math.random() - 0.5) : allChoices);
   };
 
   const speak = (text: string) => {
@@ -126,32 +224,60 @@ export function QuizModal({ words, mode, direction, onClose, onComplete }: QuizM
   };
 
   const handleFlashAnswer = (knowIt: boolean) => {
+    solvedCountRef.current += 1;
     if (knowIt) {
-      setScore(score + 1);
+      correctCountRef.current += 1;
+      setScore(correctCountRef.current);
     } else {
-      setWrongCount(wrongCount + 1);
+      wrongCountRef.current += 1;
+      setWrongCount(wrongCountRef.current);
       // Record wrong word
-      setWrongWordsList([...wrongWordsList, currentWord]);
+      wrongWordsRef.current = [...wrongWordsRef.current, currentWord];
     }
     nextQuestion();
   };
 
   const handleMCAnswer = (choice: string) => {
+    solvedCountRef.current += 1;
     setSelectedAnswer(choice);
     const correct = choice === answer;
     setIsCorrect(correct);
 
     if (correct) {
-      setScore(score + 1);
+      correctCountRef.current += 1;
+      setScore(correctCountRef.current);
     } else {
-      setWrongCount(wrongCount + 1);
+      wrongCountRef.current += 1;
+      setWrongCount(wrongCountRef.current);
       // Record wrong word
-      setWrongWordsList([...wrongWordsList, currentWord]);
+      wrongWordsRef.current = [...wrongWordsRef.current, currentWord];
     }
 
     setTimeout(() => {
       nextQuestion();
     }, 1200);
+  };
+
+  const buildProgressPayload = (completed: boolean) => {
+    const hasAnsweredCurrent = mode === 'mc' && selectedAnswer !== null;
+    const resumeIndex = completed ? words.length : currentIndex + (hasAnsweredCurrent ? 1 : 0);
+    const remainingWords = words.slice(resumeIndex);
+
+    return {
+      solvedCount: solvedCountRef.current,
+      correctCount: correctCountRef.current,
+      wrongCount: wrongCountRef.current,
+      wrongWords: wrongWordsRef.current,
+      completed,
+      currentIndex: resumeIndex,
+      remainingWords,
+    };
+  };
+
+  const handleCloseWithProgressSave = () => {
+    if (isFinalizedRef.current) return;
+    isFinalizedRef.current = true;
+    onProgressSave(buildProgressPayload(false));
   };
 
   const nextQuestion = () => {
@@ -161,18 +287,19 @@ export function QuizModal({ words, mode, direction, onClose, onComplete }: QuizM
       setSelectedAnswer(null);
       setIsCorrect(null);
     } else {
-      // Quiz complete
-      const xpGained = score * 10;
-      onComplete({
-        correct: score,
-        total: words.length,
-        xp: xpGained,
-        wrongWords: wrongWordsList,
-      });
+      if (isFinalizedRef.current) return;
+      isFinalizedRef.current = true;
+      onComplete(buildProgressPayload(true));
     }
   };
 
   if (!currentWord) return null;
+
+  const formatTime = (totalSec: number) => {
+    const min = Math.floor(totalSec / 60);
+    const sec = totalSec % 60;
+    return `${String(min).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
+  };
 
   return (
     <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-300">
@@ -195,9 +322,19 @@ export function QuizModal({ words, mode, direction, onClose, onComplete }: QuizM
               <div className="px-4 py-2 rounded-full bg-gradient-to-r from-red-50 to-rose-50 border border-red-200">
                 <span className="text-sm font-bold text-red-700">✗ {wrongCount}</span>
               </div>
+              {timerOn && normalizedTimerMode === 'perQuestion' && (
+                <div className="px-4 py-2 rounded-full bg-gradient-to-r from-orange-50 to-amber-50 border border-orange-200">
+                  <span className="text-sm font-bold text-orange-700">문항 {formatTime(perQuestionLeft)}</span>
+                </div>
+              )}
+              {timerOn && normalizedTimerMode === 'session' && (
+                <div className="px-4 py-2 rounded-full bg-gradient-to-r from-orange-50 to-amber-50 border border-orange-200">
+                  <span className="text-sm font-bold text-orange-700">세션 {formatTime(sessionLeft)}</span>
+                </div>
+              )}
             </div>
             <button
-              onClick={onClose}
+              onClick={handleCloseWithProgressSave}
               className="p-2 rounded-full hover:bg-gray-100 transition-colors duration-200 ml-4"
             >
               <X className="w-5 h-5 text-gray-500" />
