@@ -47,13 +47,18 @@ const DAY_CATEGORIES: { [key: number]: string } = {
 
 interface QuizModalProps {
   words: Word[];
-  mode: 'flash' | 'mc' | 'sa';
+  mode: 'flash' | 'mc';
   direction: 'en2ko' | 'ko2en';
   shuffleChoices: boolean;
   timerOn: boolean;
   timerMode: string;
   perQSec: string;
   sessionMin: string;
+  onLiveUpdate?: (stats: {
+    solvedCount: number;
+    correctCount: number;
+    wrongCount: number;
+  }) => void;
   onProgressSave: (stats: {
     solvedCount: number;
     correctCount: number;
@@ -83,6 +88,7 @@ export function QuizModal({
   timerMode,
   perQSec,
   sessionMin,
+  onLiveUpdate,
   onProgressSave,
   onComplete,
 }: QuizModalProps) {
@@ -118,6 +124,14 @@ export function QuizModal({
       window.clearTimeout(flashAutoWrongTimeoutRef.current);
       flashAutoWrongTimeoutRef.current = null;
     }
+  };
+
+  const emitLiveUpdate = () => {
+    onLiveUpdate?.({
+      solvedCount: solvedCountRef.current,
+      correctCount: correctCountRef.current,
+      wrongCount: wrongCountRef.current,
+    });
   };
 
   useEffect(() => {
@@ -181,6 +195,7 @@ export function QuizModal({
     wrongCountRef.current += 1;
     setWrongCount(wrongCountRef.current);
     wrongWordsRef.current = [...wrongWordsRef.current, currentWord];
+    emitLiveUpdate();
     nextQuestion();
   }, [timerOn, normalizedTimerMode, perQuestionLeft, selectedAnswer, mode, currentWord, isAutoWrongPending]);
 
@@ -244,6 +259,7 @@ export function QuizModal({
       // Record wrong word
       wrongWordsRef.current = [...wrongWordsRef.current, currentWord];
     }
+    emitLiveUpdate();
     nextQuestion();
   };
 
@@ -279,6 +295,7 @@ export function QuizModal({
       // Record wrong word
       wrongWordsRef.current = [...wrongWordsRef.current, currentWord];
     }
+    emitLiveUpdate();
 
     setTimeout(() => {
       nextQuestion();
