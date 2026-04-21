@@ -87,6 +87,20 @@ interface Settings {
   wrongMark: boolean;
 }
 
+const formatDateKey = (date = new Date()) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+const getPreviousDateKey = (dateKey: string) => {
+  const [year, month, day] = dateKey.split('-').map(Number);
+  const date = new Date(year, month - 1, day);
+  date.setDate(date.getDate() - 1);
+  return formatDateKey(date);
+};
+
 export default function App() {
   const [currentTab, setCurrentTab] = useState('home');
   const [words, setWords] = useState<Word[]>([]);
@@ -110,6 +124,9 @@ export default function App() {
   const [statsPeriod, setStatsPeriod] = useState<'7' | '30' | 'all'>('7');
   const [hasResumeData, setHasResumeData] = useState(false);
   const [wrongWords, setWrongWords] = useState<Word[]>([]);
+  const [liveSessionSolved, setLiveSessionSolved] = useState(0);
+  const [liveSessionTotal, setLiveSessionTotal] = useState(0);
+  const [pendingResumeTotal, setPendingResumeTotal] = useState(0);
   const [isWordsLoading, setIsWordsLoading] = useState(true);
 
   // Learning settings
@@ -145,7 +162,21 @@ export default function App() {
 
   const checkResumeData = () => {
     const resumeData = localStorage.getItem('toeic_resume_v1');
-    setHasResumeData(!!resumeData);
+    if (!resumeData) {
+      setHasResumeData(false);
+      setPendingResumeTotal(0);
+      return;
+    }
+
+    try {
+      const parsed = JSON.parse(resumeData);
+      const remaining = Array.isArray(parsed.remainingWords) ? parsed.remainingWords.length : 0;
+      setHasResumeData(remaining > 0);
+      setPendingResumeTotal(remaining);
+    } catch (e) {
+      setHasResumeData(false);
+      setPendingResumeTotal(0);
+    }
   };
 
   const loadWrongWords = () => {
@@ -173,7 +204,8 @@ export default function App() {
     try {
       const data = JSON.parse(resumeData);
       // Resume with saved settings
-      setMode(data.mode || 'flash');
+      const safeMode = data.mode === 'mc' ? 'mc' : 'flash';
+      setMode(safeMode);
       setDirection(data.direction || 'en2ko');
       setCount(data.count?.toString() || '30');
       setSelectedDays(data.days || [1]);
@@ -187,6 +219,9 @@ export default function App() {
 
       // Start quiz with remaining words
       if (data.remainingWords && data.remainingWords.length > 0) {
+        setLiveSessionSolved(0);
+        setLiveSessionTotal(data.remainingWords.length);
+        setPendingResumeTotal(0);
         setQuizWords(data.remainingWords);
         setShowQuiz(true);
       } else {
@@ -211,6 +246,8 @@ export default function App() {
         .slice(0, Math.min(30, wrongWords.length))
         .map(({ mistakes, ...word }) => word)
     );
+    setLiveSessionSolved(0);
+    setLiveSessionTotal(Math.min(30, wrongWords.length));
     setShowQuiz(true);
   };
 
@@ -218,7 +255,8 @@ export default function App() {
     const savedStats = localStorage.getItem('toeic_stats_v2');
     if (savedStats) {
       const parsed = JSON.parse(savedStats);
-      setStats({
+      const today = formatDateKey();
+      const normalizedStats = {
         todayCount: parsed.todayCount || 0,
         streak: parsed.streak || 0,
         totalSolved: parsed.totalSolved || 0,
@@ -227,7 +265,13 @@ export default function App() {
         level: parsed.level || 1,
         lastStudyDate: parsed.lastStudyDate || '',
         dailyLog: parsed.dailyLog || {},
-      });
+      };
+
+      if (normalizedStats.lastStudyDate && normalizedStats.lastStudyDate !== today) {
+        normalizedStats.todayCount = 0;
+      }
+
+      setStats(normalizedStats);
     }
   };
 
@@ -366,13 +410,16 @@ export default function App() {
       .slice(0, Math.min(parseInt(count), filteredWords.length));
 
     setQuizWords(selectedWords);
+    setLiveSessionSolved(0);
+    setLiveSessionTotal(selectedWords.length);
     setShowQuiz(true);
   };
 
   const applySessionStats = (progress: QuizSessionProgress) => {
     if (progress.solvedCount <= 0) return;
 
-    const today = new Date().toISOString().split('T')[0];
+    const today = formatDateKey();
+    const yesterday = getPreviousDateKey(today);
     const gainedXP = progress.correctCount * 10;
     const newXP = stats.xp + gainedXP;
     const xpNeeded = calculateXPForLevel(stats.level);
@@ -382,7 +429,12 @@ export default function App() {
       newLevel = stats.level + 1;
     }
 
-    const newStreak = stats.lastStudyDate === today ? stats.streak : stats.streak + 1;
+    const newStreak =
+      stats.lastStudyDate === today
+        ? stats.streak
+        : stats.lastStudyDate === yesterday
+        ? stats.streak + 1
+        : 1;
 
     const newStats = {
       ...stats,
@@ -441,6 +493,7 @@ export default function App() {
     if (progress.remainingWords.length === 0) {
       localStorage.removeItem('toeic_resume_v1');
       setHasResumeData(false);
+      setPendingResumeTotal(0);
       return;
     }
 
@@ -461,12 +514,15 @@ export default function App() {
 
     localStorage.setItem('toeic_resume_v1', JSON.stringify(resumePayload));
     setHasResumeData(true);
+    setPendingResumeTotal(progress.remainingWords.length);
   };
 
   const handleQuizProgressSave = (progress: QuizSessionProgress) => {
     applySessionStats(progress);
     mergeWrongWords(progress.wrongWords);
     saveResumeData(progress);
+    setLiveSessionSolved(0);
+    setLiveSessionTotal(0);
     setShowQuiz(false);
   };
 
@@ -477,9 +533,23 @@ export default function App() {
     // Clear resume data on completion
     localStorage.removeItem('toeic_resume_v1');
     setHasResumeData(false);
+    setPendingResumeTotal(0);
 
+    setLiveSessionSolved(0);
+    setLiveSessionTotal(0);
     setShowQuiz(false);
   };
+
+  const handleLiveSessionUpdate = (progress: { solvedCount: number; correctCount: number; wrongCount: number }) => {
+    setLiveSessionSolved(progress.solvedCount);
+  };
+
+  const displayedTodayCount = stats.todayCount + liveSessionSolved;
+  const displayedSessionTotal = showQuiz ? liveSessionTotal : pendingResumeTotal;
+  const displayedSessionSolved = showQuiz ? liveSessionSolved : 0;
+  const accuracyRate = stats.totalSolved > 0
+    ? Math.round((stats.totalCorrect / stats.totalSolved) * 100)
+    : 0;
 
   const wrongWordItems = useMemo(() => {
     return [...wrongWords]
@@ -569,20 +639,32 @@ export default function App() {
           <div className="space-y-5 md:space-y-6 max-w-2xl mx-auto">
             {/* Today Status (Hero) */}
             <div className="text-center py-4 md:py-6">
-              <div className="text-xs md:text-sm font-semibold text-gray-500 mb-2">오늘 학습</div>
+              <div className="text-xs md:text-sm font-semibold text-gray-500 mb-2">오늘 목표</div>
               <div className="text-5xl md:text-6xl font-bold mb-1 bg-gradient-to-br from-gray-900 to-gray-600 bg-clip-text text-transparent">
-                {stats.todayCount} / {todayGoal}
+                {displayedTodayCount} / {todayGoal}
               </div>
-              <div className="text-sm md:text-base text-gray-500 mb-3">목표 단어 달성</div>
+              <div className="text-sm md:text-base text-gray-500 mb-3">일일 목표 진행</div>
 
               {/* Progress bar */}
               <div className="max-w-md mx-auto">
                 <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
                   <div
                     className="h-full bg-gradient-to-r from-blue-500 to-purple-500 rounded-full transition-all duration-500"
-                    style={{ width: `${Math.min((stats.todayCount / todayGoal) * 100, 100)}%` }}
+                    style={{ width: `${Math.min((displayedTodayCount / todayGoal) * 100, 100)}%` }}
                   />
                 </div>
+              </div>
+
+              <div className="mt-4 rounded-xl bg-gray-50 border border-gray-200 p-3 text-left">
+                <div className="text-xs font-semibold text-gray-500">현재 학습 범위 진행도</div>
+                {displayedSessionTotal > 0 ? (
+                  <div className="text-sm font-bold text-gray-900 mt-1">
+                    {displayedSessionSolved} / {displayedSessionTotal}
+                    {!showQuiz && hasResumeData && ' (이어하기 대기)'}
+                  </div>
+                ) : (
+                  <div className="text-sm text-gray-600 mt-1">진행 중인 세션 없음</div>
+                )}
               </div>
             </div>
 
@@ -641,7 +723,7 @@ export default function App() {
                 {Array.from({ length: 7 }, (_, i) => {
                   const date = new Date();
                   date.setDate(date.getDate() - (6 - i));
-                  const dateStr = date.toISOString().split('T')[0];
+                  const dateStr = formatDateKey(date);
                   const count = stats.dailyLog[dateStr] || 0;
                   const maxCount = Math.max(...Object.values(stats.dailyLog), 30);
                   const height = maxCount > 0 ? (count / maxCount) * 100 : 0;
@@ -779,7 +861,6 @@ export default function App() {
                   <SelectContent>
                     <SelectItem value="flash">플래시카드</SelectItem>
                     <SelectItem value="mc">4지선다</SelectItem>
-                    <SelectItem value="sa">주관식</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -963,7 +1044,7 @@ export default function App() {
               {[
                 { id: '7', label: '7일' },
                 { id: '30', label: '30일' },
-                { id: 'all', label: '전체' },
+                { id: 'all', label: '최근 30일' },
               ].map((period) => (
                 <button
                   key={period.id}
@@ -986,11 +1067,11 @@ export default function App() {
               <div className="text-sm font-semibold text-gray-700 mb-4">최근 학습 흐름</div>
               <div className="h-40 flex items-end gap-1">
                 {(() => {
-                  const days = statsPeriod === '7' ? 7 : statsPeriod === '30' ? 30 : 90;
-                  const data = Array.from({ length: Math.min(days, 30) }, (_, i) => {
+                  const days = statsPeriod === '7' ? 7 : 30;
+                  const data = Array.from({ length: days }, (_, i) => {
                     const date = new Date();
                     date.setDate(date.getDate() - (days - 1 - i));
-                    const dateStr = date.toISOString().split('T')[0];
+                    const dateStr = formatDateKey(date);
                     return {
                       date: dateStr,
                       count: stats.dailyLog[dateStr] || 0,
@@ -1000,7 +1081,7 @@ export default function App() {
 
                   return data.map((d, i) => {
                     const height = (d.count / maxCount) * 100;
-                    const isToday = d.date === new Date().toISOString().split('T')[0];
+                    const isToday = d.date === formatDateKey();
 
                     return (
                       <div key={i} className="flex-1 flex flex-col items-center gap-1">
@@ -1021,7 +1102,7 @@ export default function App() {
                 })()}
               </div>
               <div className="mt-3 text-xs text-gray-400 text-center">
-                {statsPeriod === '7' ? '최근 7일' : statsPeriod === '30' ? '최근 30일' : '전체 기간'}
+                {statsPeriod === '7' ? '최근 7일' : '최근 30일'}
               </div>
             </div>
 
@@ -1029,7 +1110,7 @@ export default function App() {
             <div className="grid grid-cols-3 gap-3">
               <div className="rounded-2xl p-4 bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 text-center">
                 <div className="text-xs font-semibold text-gray-600 mb-1">평균 정답률</div>
-                <div className="text-2xl font-bold text-blue-900">--%</div>
+                <div className="text-2xl font-bold text-blue-900">{accuracyRate}%</div>
               </div>
               <div className="rounded-2xl p-4 bg-gradient-to-br from-purple-50 to-pink-50 border border-purple-200 text-center">
                 <div className="text-xs font-semibold text-gray-600 mb-1">총 학습</div>
@@ -1053,7 +1134,7 @@ export default function App() {
                 {Array.from({ length: 35 }).map((_, i) => {
                   const date = new Date();
                   date.setDate(date.getDate() - 34 + i);
-                  const dateStr = date.toISOString().split('T')[0];
+                  const dateStr = formatDateKey(date);
                   const count = stats.dailyLog[dateStr] || 0;
                   const intensity = count > 0 ? Math.min(Math.ceil(count / 10), 4) : 0;
 
@@ -1107,7 +1188,11 @@ export default function App() {
             <div className="rounded-2xl p-5 bg-white border border-gray-200 shadow-sm">
               <div className="flex items-center justify-between mb-4">
                 <div className="text-sm font-semibold text-gray-700">자주 틀린 단어</div>
-                <button className="text-xs text-blue-600 hover:text-blue-700 font-semibold">
+                <button
+                  onClick={reviewWrongWords}
+                  disabled={wrongWords.length === 0}
+                  className={`text-xs font-semibold ${wrongWords.length === 0 ? 'text-gray-400 cursor-not-allowed' : 'text-blue-600 hover:text-blue-700'}`}
+                >
                   복습하기 →
                 </button>
               </div>
@@ -1274,13 +1359,14 @@ export default function App() {
       {showQuiz && (
         <QuizModal
           words={quizWords}
-          mode={mode as 'flash' | 'mc' | 'sa'}
+          mode={mode as 'flash' | 'mc'}
           direction={direction as 'en2ko' | 'ko2en'}
           shuffleChoices={settings.shuffleChoices}
           timerOn={settings.timerOn}
           timerMode={settings.timerMode}
           perQSec={settings.perQSec}
           sessionMin={settings.sessionMin}
+          onLiveUpdate={handleLiveSessionUpdate}
           onProgressSave={handleQuizProgressSave}
           onComplete={handleQuizComplete}
         />
