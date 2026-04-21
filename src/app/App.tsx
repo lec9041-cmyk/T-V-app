@@ -110,6 +110,7 @@ export default function App() {
   const [statsPeriod, setStatsPeriod] = useState<'7' | '30' | 'all'>('7');
   const [hasResumeData, setHasResumeData] = useState(false);
   const [wrongWords, setWrongWords] = useState<Word[]>([]);
+  const [isWordsLoading, setIsWordsLoading] = useState(true);
 
   // Learning settings
   const [mode, setMode] = useState('flash');
@@ -307,6 +308,8 @@ export default function App() {
       ];
       setWords(sampleWords);
       setSelectedDays([1]);
+    } finally {
+      setIsWordsLoading(false);
     }
   };
 
@@ -325,6 +328,11 @@ export default function App() {
   };
 
   const startQuiz = () => {
+    if (isWordsLoading) {
+      alert('단어 데이터를 불러오는 중입니다. 잠시 후 다시 시도해주세요.');
+      return;
+    }
+
     if (selectedDays.length === 0) {
       alert('DAY를 먼저 선택해주세요!');
       setShowDaySelector(true);
@@ -582,10 +590,11 @@ export default function App() {
             <Button
               size="lg"
               onClick={startQuiz}
+              disabled={isWordsLoading}
               className="w-full py-6 md:py-7 text-lg md:text-xl font-bold rounded-2xl bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white shadow-xl shadow-blue-500/25 hover:shadow-2xl hover:shadow-blue-500/40 transition-all duration-300 hover:scale-[1.02] active:scale-[0.98]"
             >
               <Play className="w-6 h-6 mr-2 fill-current" />
-              학습 시작
+              {isWordsLoading ? '단어 로딩 중...' : '학습 시작'}
             </Button>
 
             {/* DAY Selection */}
@@ -658,9 +667,9 @@ export default function App() {
             <div className="grid grid-cols-2 gap-3">
               <button
                 onClick={hasResumeData ? resumeStudy : startQuiz}
-                disabled={!hasResumeData && selectedDays.length === 0}
+                disabled={(!hasResumeData && selectedDays.length === 0) || (!hasResumeData && isWordsLoading)}
                 className={`rounded-2xl p-5 bg-gradient-to-br from-blue-50 to-indigo-50 hover:from-blue-100 hover:to-indigo-100 border border-blue-200 transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] text-left shadow-sm ${
-                  !hasResumeData && selectedDays.length === 0 ? 'opacity-50 cursor-not-allowed' : ''
+                  (!hasResumeData && selectedDays.length === 0) || (!hasResumeData && isWordsLoading) ? 'opacity-50 cursor-not-allowed' : ''
                 }`}
               >
                 <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-gradient-to-r from-blue-500 to-indigo-600 mb-3 shadow-md">
@@ -670,7 +679,7 @@ export default function App() {
                   {hasResumeData ? '이어서 학습' : '새로 학습'}
                 </div>
                 <div className="text-xs text-gray-500 mt-1">
-                  {hasResumeData ? '저장된 위치부터' : '지금 바로 시작'}
+                  {hasResumeData ? '저장된 위치부터' : isWordsLoading ? '단어 로딩 중...' : '지금 바로 시작'}
                 </div>
               </button>
 
@@ -869,11 +878,11 @@ export default function App() {
             <Button
               size="lg"
               onClick={startQuiz}
-              disabled={selectedRanges.length === 0}
+              disabled={selectedRanges.length === 0 || isWordsLoading}
               className="w-full h-14 md:h-16 text-base md:text-lg font-semibold rounded-2xl bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white shadow-2xl shadow-blue-500/30 transition-all duration-300 hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Zap className="w-4 h-4 md:w-5 md:h-5 mr-2" />
-              학습 시작
+              {isWordsLoading ? '단어 로딩 중...' : '학습 시작'}
             </Button>
 
             {/* Favorites Section */}
