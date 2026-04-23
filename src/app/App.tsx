@@ -544,9 +544,11 @@ export default function App() {
     setLiveSessionSolved(progress.solvedCount);
   };
 
-  const displayedTodayCount = stats.todayCount + liveSessionSolved;
-  const displayedSessionTotal = showQuiz ? liveSessionTotal : pendingResumeTotal;
-  const displayedSessionSolved = showQuiz ? liveSessionSolved : 0;
+  // 저장값(stats.todayCount)은 완료/중간저장 시점에만 갱신하고,
+  // 홈 상단 "오늘 목표"에는 퀴즈 진행 중 임시 진행량(liveSessionSolved)만 표시 보정한다.
+  const displayedTodayCount = showQuiz
+    ? stats.todayCount + liveSessionSolved
+    : stats.todayCount;
   const accuracyRate = stats.totalSolved > 0
     ? Math.round((stats.totalCorrect / stats.totalSolved) * 100)
     : 0;
