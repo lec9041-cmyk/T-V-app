@@ -125,6 +125,8 @@ export default function App() {
   const [hasResumeData, setHasResumeData] = useState(false);
   const [wrongWords, setWrongWords] = useState<Word[]>([]);
   const [liveSessionSolved, setLiveSessionSolved] = useState(0);
+  const [liveSessionTotal, setLiveSessionTotal] = useState(0);
+  const [pendingResumeTotal, setPendingResumeTotal] = useState(0);
   const [isWordsLoading, setIsWordsLoading] = useState(true);
 
   // Learning settings
@@ -160,7 +162,21 @@ export default function App() {
 
   const checkResumeData = () => {
     const resumeData = localStorage.getItem('toeic_resume_v1');
-    setHasResumeData(!!resumeData);
+    if (!resumeData) {
+      setHasResumeData(false);
+      setPendingResumeTotal(0);
+      return;
+    }
+
+    try {
+      const parsed = JSON.parse(resumeData);
+      const remaining = Array.isArray(parsed.remainingWords) ? parsed.remainingWords.length : 0;
+      setHasResumeData(remaining > 0);
+      setPendingResumeTotal(remaining);
+    } catch (e) {
+      setHasResumeData(false);
+      setPendingResumeTotal(0);
+    }
   };
 
   const loadWrongWords = () => {
@@ -203,6 +219,9 @@ export default function App() {
 
       // Start quiz with remaining words
       if (data.remainingWords && data.remainingWords.length > 0) {
+        setLiveSessionSolved(0);
+        setLiveSessionTotal(data.remainingWords.length);
+        setPendingResumeTotal(0);
         setQuizWords(data.remainingWords);
         setShowQuiz(true);
       } else {
@@ -228,6 +247,7 @@ export default function App() {
         .map(({ mistakes, ...word }) => word)
     );
     setLiveSessionSolved(0);
+    setLiveSessionTotal(Math.min(30, wrongWords.length));
     setShowQuiz(true);
   };
 
@@ -391,6 +411,7 @@ export default function App() {
 
     setQuizWords(selectedWords);
     setLiveSessionSolved(0);
+    setLiveSessionTotal(selectedWords.length);
     setShowQuiz(true);
   };
 
@@ -472,6 +493,7 @@ export default function App() {
     if (progress.remainingWords.length === 0) {
       localStorage.removeItem('toeic_resume_v1');
       setHasResumeData(false);
+      setPendingResumeTotal(0);
       return;
     }
 
@@ -492,6 +514,7 @@ export default function App() {
 
     localStorage.setItem('toeic_resume_v1', JSON.stringify(resumePayload));
     setHasResumeData(true);
+    setPendingResumeTotal(progress.remainingWords.length);
   };
 
   const handleQuizProgressSave = (progress: QuizSessionProgress) => {
@@ -499,6 +522,7 @@ export default function App() {
     mergeWrongWords(progress.wrongWords);
     saveResumeData(progress);
     setLiveSessionSolved(0);
+    setLiveSessionTotal(0);
     setShowQuiz(false);
   };
 
@@ -509,8 +533,10 @@ export default function App() {
     // Clear resume data on completion
     localStorage.removeItem('toeic_resume_v1');
     setHasResumeData(false);
+    setPendingResumeTotal(0);
 
     setLiveSessionSolved(0);
+    setLiveSessionTotal(0);
     setShowQuiz(false);
   };
 
@@ -615,11 +641,11 @@ export default function App() {
           <div className="space-y-5 md:space-y-6 max-w-2xl mx-auto">
             {/* Today Status (Hero) */}
             <div className="text-center py-4 md:py-6">
-              <div className="text-xs md:text-sm font-semibold text-gray-500 mb-2">오늘 학습</div>
+              <div className="text-xs md:text-sm font-semibold text-gray-500 mb-2">오늘 목표</div>
               <div className="text-5xl md:text-6xl font-bold mb-1 bg-gradient-to-br from-gray-900 to-gray-600 bg-clip-text text-transparent">
                 {displayedTodayCount} / {todayGoal}
               </div>
-              <div className="text-sm md:text-base text-gray-500 mb-3">목표 단어 달성</div>
+              <div className="text-sm md:text-base text-gray-500 mb-3">일일 목표 진행</div>
 
               {/* Progress bar */}
               <div className="max-w-md mx-auto">
@@ -629,6 +655,18 @@ export default function App() {
                     style={{ width: `${Math.min((displayedTodayCount / todayGoal) * 100, 100)}%` }}
                   />
                 </div>
+              </div>
+
+              <div className="mt-4 rounded-xl bg-gray-50 border border-gray-200 p-3 text-left">
+                <div className="text-xs font-semibold text-gray-500">현재 학습 범위 진행도</div>
+                {displayedSessionTotal > 0 ? (
+                  <div className="text-sm font-bold text-gray-900 mt-1">
+                    {displayedSessionSolved} / {displayedSessionTotal}
+                    {!showQuiz && hasResumeData && ' (이어하기 대기)'}
+                  </div>
+                ) : (
+                  <div className="text-sm text-gray-600 mt-1">진행 중인 세션 없음</div>
+                )}
               </div>
             </div>
 
