@@ -101,6 +101,31 @@ const getPreviousDateKey = (dateKey: string) => {
   return formatDateKey(date);
 };
 
+const safeStorage = {
+  getItem(key: string) {
+    try {
+      return window.localStorage.getItem(key);
+    } catch (error) {
+      console.warn(`[storage] getItem failed for "${key}"`, error);
+      return null;
+    }
+  },
+  setItem(key: string, value: string) {
+    try {
+      window.localStorage.setItem(key, value);
+    } catch (error) {
+      console.warn(`[storage] setItem failed for "${key}"`, error);
+    }
+  },
+  removeItem(key: string) {
+    try {
+      window.localStorage.removeItem(key);
+    } catch (error) {
+      console.warn(`[storage] removeItem failed for "${key}"`, error);
+    }
+  },
+};
+
 export default function App() {
   const [currentTab, setCurrentTab] = useState('home');
   const [words, setWords] = useState<Word[]>([]);
@@ -161,7 +186,7 @@ export default function App() {
   }, []);
 
   const checkResumeData = () => {
-    const resumeData = localStorage.getItem('toeic_resume_v1');
+    const resumeData = safeStorage.getItem('toeic_resume_v1');
     if (!resumeData) {
       setHasResumeData(false);
       setPendingResumeTotal(0);
@@ -180,7 +205,7 @@ export default function App() {
   };
 
   const loadWrongWords = () => {
-    const wrongLog = localStorage.getItem('toeic_wrong_log_v1');
+    const wrongLog = safeStorage.getItem('toeic_wrong_log_v1');
     if (wrongLog) {
       try {
         const log = JSON.parse(wrongLog);
@@ -195,7 +220,7 @@ export default function App() {
   };
 
   const resumeStudy = () => {
-    const resumeData = localStorage.getItem('toeic_resume_v1');
+    const resumeData = safeStorage.getItem('toeic_resume_v1');
     if (!resumeData) {
       alert('이어서 학습할 데이터가 없습니다.');
       return;
@@ -230,7 +255,7 @@ export default function App() {
       }
     } catch (e) {
       alert('이어서 학습 데이터를 불러오는데 실패했습니다.');
-      localStorage.removeItem('toeic_resume_v1');
+      safeStorage.removeItem('toeic_resume_v1');
       setHasResumeData(false);
     }
   };
@@ -252,32 +277,36 @@ export default function App() {
   };
 
   const loadStats = () => {
-    const savedStats = localStorage.getItem('toeic_stats_v2');
+    const savedStats = safeStorage.getItem('toeic_stats_v2');
     if (savedStats) {
-      const parsed = JSON.parse(savedStats);
-      const today = formatDateKey();
-      const normalizedStats = {
-        todayCount: parsed.todayCount || 0,
-        streak: parsed.streak || 0,
-        totalSolved: parsed.totalSolved || 0,
-        totalCorrect: parsed.totalCorrect || 0,
-        xp: parsed.xp || 0,
-        level: parsed.level || 1,
-        lastStudyDate: parsed.lastStudyDate || '',
-        dailyLog: parsed.dailyLog || {},
-      };
+      try {
+        const parsed = JSON.parse(savedStats);
+        const today = formatDateKey();
+        const normalizedStats = {
+          todayCount: parsed.todayCount || 0,
+          streak: parsed.streak || 0,
+          totalSolved: parsed.totalSolved || 0,
+          totalCorrect: parsed.totalCorrect || 0,
+          xp: parsed.xp || 0,
+          level: parsed.level || 1,
+          lastStudyDate: parsed.lastStudyDate || '',
+          dailyLog: parsed.dailyLog || {},
+        };
 
-      if (normalizedStats.lastStudyDate && normalizedStats.lastStudyDate !== today) {
-        normalizedStats.todayCount = 0;
+        if (normalizedStats.lastStudyDate && normalizedStats.lastStudyDate !== today) {
+          normalizedStats.todayCount = 0;
+        }
+
+        setStats(normalizedStats);
+      } catch (error) {
+        console.warn('[stats] Failed to parse toeic_stats_v2', error);
       }
-
-      setStats(normalizedStats);
     }
   };
 
   const saveStats = (newStats: Stats) => {
     setStats(newStats);
-    localStorage.setItem('toeic_stats_v2', JSON.stringify(newStats));
+    safeStorage.setItem('toeic_stats_v2', JSON.stringify(newStats));
   };
 
   const loadSampleWords = async () => {
@@ -486,12 +515,12 @@ export default function App() {
     );
 
     setWrongWords(uniqueWrong);
-    localStorage.setItem('toeic_wrong_log_v1', JSON.stringify(uniqueWrong));
+    safeStorage.setItem('toeic_wrong_log_v1', JSON.stringify(uniqueWrong));
   };
 
   const saveResumeData = (progress: QuizSessionProgress) => {
     if (progress.remainingWords.length === 0) {
-      localStorage.removeItem('toeic_resume_v1');
+      safeStorage.removeItem('toeic_resume_v1');
       setHasResumeData(false);
       setPendingResumeTotal(0);
       return;
@@ -512,7 +541,7 @@ export default function App() {
       savedAt: new Date().toISOString(),
     };
 
-    localStorage.setItem('toeic_resume_v1', JSON.stringify(resumePayload));
+    safeStorage.setItem('toeic_resume_v1', JSON.stringify(resumePayload));
     setHasResumeData(true);
     setPendingResumeTotal(progress.remainingWords.length);
   };
@@ -531,7 +560,7 @@ export default function App() {
     mergeWrongWords(progress.wrongWords);
 
     // Clear resume data on completion
-    localStorage.removeItem('toeic_resume_v1');
+    safeStorage.removeItem('toeic_resume_v1');
     setHasResumeData(false);
     setPendingResumeTotal(0);
 
@@ -970,8 +999,16 @@ export default function App() {
 
             {/* Favorites Section */}
             {(() => {
-              const saved = localStorage.getItem('toeic_favorites');
-              const favoriteWords = saved ? JSON.parse(saved) : [];
+              const saved = safeStorage.getItem('toeic_favorites');
+              let favoriteWords: string[] = [];
+              if (saved) {
+                try {
+                  const parsed = JSON.parse(saved);
+                  favoriteWords = Array.isArray(parsed) ? parsed : [];
+                } catch (error) {
+                  console.warn('[favorites] Failed to parse toeic_favorites', error);
+                }
+              }
               if (favoriteWords.length > 0) {
                 return (
                   <div className="rounded-2xl p-5 bg-gradient-to-br from-yellow-50 to-amber-50 border border-yellow-200">
