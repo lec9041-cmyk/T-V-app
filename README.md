@@ -83,6 +83,42 @@ npm run dev
 npm run build
 ```
 
+## 🛠️ 실행 문제 해결 (Troubleshooting)
+
+### 1) `npm warn Unknown env config "http-proxy"`
+
+- 이 메시지는 **경고(warn)** 이며, 현재 빌드/실행을 막는 치명적 오류는 아닙니다.
+- npm 설정에 오래된 `http-proxy` 키가 남아 있을 때 발생할 수 있습니다.
+
+정리 명령어:
+
+```bash
+npm config delete http-proxy
+npm config delete https-proxy
+```
+
+### 2) 개발 서버가 안 열리는 경우
+
+프로젝트는 Vite 기반이라 보통 아래 명령으로 실행됩니다.
+
+```bash
+npm run dev
+```
+
+외부 네트워크(같은 와이파이 기기)에서 접속하려면:
+
+```bash
+npm run dev -- --host 0.0.0.0 --port 4173
+```
+
+### 3) Node 버전 확인
+
+Vite 6 환경에서는 Node 버전이 너무 낮으면 실행이 실패할 수 있습니다. 먼저 버전을 확인하세요.
+
+```bash
+node -v
+```
+
 ## 🔄 자동 배포
 
 GitHub에 코드를 푸시하면 Vercel이 자동으로 새 버전을 배포합니다:
