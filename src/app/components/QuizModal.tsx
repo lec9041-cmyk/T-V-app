@@ -79,6 +79,24 @@ interface QuizModalProps {
   }) => void;
 }
 
+const safeStorage = {
+  getItem(key: string) {
+    try {
+      return window.localStorage.getItem(key);
+    } catch (error) {
+      console.warn(`[storage] getItem failed for "${key}"`, error);
+      return null;
+    }
+  },
+  setItem(key: string, value: string) {
+    try {
+      window.localStorage.setItem(key, value);
+    } catch (error) {
+      console.warn(`[storage] setItem failed for "${key}"`, error);
+    }
+  },
+};
+
 export function QuizModal({
   words,
   mode,
@@ -109,8 +127,18 @@ export function QuizModal({
   const isFinalizedRef = useRef(false);
   const flashAutoWrongTimeoutRef = useRef<number | null>(null);
   const [favorites, setFavorites] = useState<Set<string>>(() => {
-    const saved = localStorage.getItem('toeic_favorites');
-    return saved ? new Set(JSON.parse(saved)) : new Set();
+    const saved = safeStorage.getItem('toeic_favorites');
+    if (!saved) {
+      return new Set();
+    }
+
+    try {
+      const parsed = JSON.parse(saved);
+      return new Set(Array.isArray(parsed) ? parsed : []);
+    } catch (error) {
+      console.warn('[favorites] Failed to parse toeic_favorites', error);
+      return new Set();
+    }
   });
 
   const currentWord = words[currentIndex];
@@ -236,7 +264,7 @@ export function QuizModal({
       newFavorites.add(word);
     }
     setFavorites(newFavorites);
-    localStorage.setItem('toeic_favorites', JSON.stringify(Array.from(newFavorites)));
+    safeStorage.setItem('toeic_favorites', JSON.stringify(Array.from(newFavorites)));
   };
 
   const handleFlashReveal = () => {
