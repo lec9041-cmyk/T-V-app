@@ -403,7 +403,7 @@ export function QuizModal({
         {/* Content */}
         <div className="flex-1 overflow-auto p-6 md:p-8">
           {mode === 'flash' ? (
-            <div className="space-y-3 md:space-y-4">
+            <div className="space-y-6 md:space-y-8">
               <div
                 className={`
                   relative rounded-3xl overflow-hidden
@@ -422,10 +422,10 @@ export function QuizModal({
                 <div className="absolute bottom-0 left-0 w-48 h-48 bg-gradient-to-tr from-pink-400/20 to-orange-400/20 rounded-full blur-3xl -ml-24 -mb-24" />
 
                 {/* Content */}
-                <div className="relative z-10 flex flex-col items-center justify-center px-5 py-8 md:px-8 md:py-10 min-h-[250px] md:min-h-[300px]">
+                <div className="relative z-10 flex flex-col items-center justify-center px-6 py-16 md:px-12 md:py-24 min-h-[320px] md:min-h-[420px]">
                   <div
                     className={`
-                      text-center space-y-4 md:space-y-5 w-full max-w-2xl
+                      text-center space-y-6 md:space-y-8 w-full max-w-2xl
                       transition-transform duration-500
                       ${isRevealed ? '-translate-y-5 md:-translate-y-6' : 'translate-y-0'}
                     `}
@@ -443,27 +443,19 @@ export function QuizModal({
                     </div>
 
                     {/* Answer (revealed) */}
-                    <div
-                      className={`
-                        space-y-3 md:space-y-4 transition-all duration-500 min-h-[72px] md:min-h-[96px]
-                        ${isRevealed ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-3'}
-                      `}
-                    >
+                    {isRevealed && (
+                      <div className="space-y-4 md:space-y-5 transition-all duration-500 opacity-100 translate-y-0 animate-in fade-in slide-in-from-bottom-2">
                         <div className="h-px bg-gradient-to-r from-transparent via-gray-300 to-transparent" />
                         <div className="text-2xl sm:text-3xl md:text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600">
                           {answer}
                         </div>
-                    </div>
+                      </div>
+                    )}
                   </div>
 
                   {/* Tap hint (not revealed) */}
-                  <div
-                    className={`
-                      absolute bottom-5 md:bottom-7 left-1/2 -translate-x-1/2
-                      flex flex-col items-center gap-2 transition-opacity duration-300 pointer-events-none
-                      ${isRevealed ? 'opacity-0' : 'opacity-60'}
-                    `}
-                  >
+                  {!isRevealed && (
+                    <div className="absolute bottom-7 md:bottom-10 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 transition-opacity duration-300 pointer-events-none opacity-60">
                       <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center shadow-lg animate-pulse">
                         <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -471,39 +463,38 @@ export function QuizModal({
                         </svg>
                       </div>
                       <p className="text-xs md:text-sm font-semibold text-gray-500">카드를 탭하여 뜻 확인</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {isRevealed && (
+                <div className="h-20 sm:h-24 md:h-28">
+                  <div className="grid grid-cols-2 gap-3 md:gap-6 h-full">
+                    <button
+                      onClick={handleFlashDontKnow}
+                      className="group relative h-full rounded-2xl overflow-hidden transition-all duration-300 hover:scale-105 active:scale-95 shadow-lg"
+                    >
+                      <div className="absolute inset-0 bg-gradient-to-br from-red-50 to-rose-100 opacity-100 group-hover:opacity-90 transition-opacity" />
+                      <div className="relative h-full flex flex-col items-center justify-center gap-1.5 md:gap-2">
+                        <div className="text-2xl md:text-3xl">😵</div>
+                        <span className="text-base md:text-lg font-bold text-red-700">몰라요</span>
+                      </div>
+                    </button>
+
+                    <button
+                      onClick={() => handleFlashAnswer(true)}
+                      className="group relative h-full rounded-2xl overflow-hidden transition-all duration-300 hover:scale-105 active:scale-95 shadow-lg"
+                    >
+                      <div className="absolute inset-0 bg-gradient-to-br from-emerald-50 to-green-100 opacity-100 group-hover:opacity-90 transition-opacity" />
+                      <div className="relative h-full flex flex-col items-center justify-center gap-1.5 md:gap-2">
+                        <div className="text-2xl md:text-3xl">🎉</div>
+                        <span className="text-base md:text-lg font-bold text-green-700">알아요</span>
+                      </div>
+                    </button>
                   </div>
                 </div>
-              </div>
-
-              <div
-                className={`h-20 sm:h-24 md:h-28 transition-opacity duration-200 ${isRevealed ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}
-              >
-                <div className="grid grid-cols-2 gap-3 md:gap-6 h-full">
-                  <button
-                    onClick={handleFlashDontKnow}
-                    className="group relative h-full rounded-2xl overflow-hidden transition-all duration-300 hover:scale-105 active:scale-95 shadow-lg"
-                  >
-                    <div className="absolute inset-0 bg-gradient-to-br from-red-50 to-rose-100 opacity-100 group-hover:opacity-90 transition-opacity" />
-                    <div className="relative h-full flex flex-col items-center justify-center gap-1.5 md:gap-2">
-                      <div className="text-2xl md:text-3xl">😵</div>
-                      <span className="text-base md:text-lg font-bold text-red-700">
-몰라요
-                      </span>
-                    </div>
-                  </button>
-
-                  <button
-                    onClick={() => handleFlashAnswer(true)}
-                    className="group relative h-full rounded-2xl overflow-hidden transition-all duration-300 hover:scale-105 active:scale-95 shadow-lg"
-                  >
-                    <div className="absolute inset-0 bg-gradient-to-br from-emerald-50 to-green-100 opacity-100 group-hover:opacity-90 transition-opacity" />
-                    <div className="relative h-full flex flex-col items-center justify-center gap-1.5 md:gap-2">
-                      <div className="text-2xl md:text-3xl">🎉</div>
-                      <span className="text-base md:text-lg font-bold text-green-700">알아요</span>
-                    </div>
-                  </button>
-                </div>
-              </div>
+              )}
             </div>
           ) : mode === 'mc' ? (
             <div className="space-y-6 md:space-y-8">
