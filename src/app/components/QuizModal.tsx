@@ -117,7 +117,6 @@ export function QuizModal({
   const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
   const [isCorrect, setIsCorrect] = useState<boolean | null>(null);
   const [choices, setChoices] = useState<string[]>([]);
-  const [isAutoWrongPending, setIsAutoWrongPending] = useState(false);
   const [perQuestionLeft, setPerQuestionLeft] = useState<number>(0);
   const [sessionLeft, setSessionLeft] = useState<number>(0);
   const solvedCountRef = useRef(0);
@@ -125,7 +124,6 @@ export function QuizModal({
   const wrongCountRef = useRef(0);
   const wrongWordsRef = useRef<Word[]>([]);
   const isFinalizedRef = useRef(false);
-  const flashAutoWrongTimeoutRef = useRef<number | null>(null);
   const [favorites, setFavorites] = useState<Set<string>>(() => {
     const saved = safeStorage.getItem('toeic_favorites');
     if (!saved) {
@@ -147,13 +145,6 @@ export function QuizModal({
   const normalizedTimerMode = timerMode === 'perQ' ? 'perQuestion' : timerMode;
   const perQuestionSeconds = Math.max(1, parseInt(perQSec || '10'));
   const sessionSeconds = Math.max(60, parseInt(sessionMin || '5') * 60);
-  const clearFlashAutoWrongTimeout = () => {
-    if (flashAutoWrongTimeoutRef.current !== null) {
-      window.clearTimeout(flashAutoWrongTimeoutRef.current);
-      flashAutoWrongTimeoutRef.current = null;
-    }
-  };
-
   const emitLiveUpdate = () => {
     onLiveUpdate?.({
       solvedCount: solvedCountRef.current,
@@ -217,7 +208,6 @@ export function QuizModal({
     if (!timerOn || isFinalizedRef.current) return;
     if (normalizedTimerMode !== 'perQuestion' || perQuestionLeft !== 0) return;
     if (mode === 'mc' && selectedAnswer !== null) return;
-    if (mode === 'flash' && isAutoWrongPending) return;
 
     solvedCountRef.current += 1;
     wrongCountRef.current += 1;
@@ -225,7 +215,7 @@ export function QuizModal({
     wrongWordsRef.current = [...wrongWordsRef.current, currentWord];
     emitLiveUpdate();
     nextQuestion();
-  }, [timerOn, normalizedTimerMode, perQuestionLeft, selectedAnswer, mode, currentWord, isAutoWrongPending]);
+  }, [timerOn, normalizedTimerMode, perQuestionLeft, selectedAnswer, mode, currentWord]);
 
   const generateChoices = () => {
     const correctAnswer = answer;
@@ -276,7 +266,7 @@ export function QuizModal({
   };
 
   const handleFlashAnswer = (knowIt: boolean) => {
-    if (isFinalizedRef.current || isAutoWrongPending) return;
+    if (isFinalizedRef.current) return;
     solvedCountRef.current += 1;
     if (knowIt) {
       correctCountRef.current += 1;
@@ -292,19 +282,8 @@ export function QuizModal({
   };
 
   const handleFlashDontKnow = () => {
-    if (isFinalizedRef.current || isAutoWrongPending) return;
-
-    if (!isRevealed) {
-      handleFlashReveal();
-      setIsAutoWrongPending(true);
-      flashAutoWrongTimeoutRef.current = window.setTimeout(() => {
-        if (isFinalizedRef.current) return;
-        setIsAutoWrongPending(false);
-        handleFlashAnswer(false);
-      }, 700);
-      return;
-    }
-
+    if (isFinalizedRef.current) return;
+    if (!isRevealed) return;
     handleFlashAnswer(false);
   };
 
@@ -348,19 +327,14 @@ export function QuizModal({
 
   const handleCloseWithProgressSave = () => {
     if (isFinalizedRef.current) return;
-    clearFlashAutoWrongTimeout();
-    setIsAutoWrongPending(false);
     isFinalizedRef.current = true;
     onProgressSave(buildProgressPayload(false));
   };
 
   const nextQuestion = () => {
-    clearFlashAutoWrongTimeout();
-
     if (currentIndex < words.length - 1) {
       setCurrentIndex(currentIndex + 1);
       setIsRevealed(false);
-      setIsAutoWrongPending(false);
       setSelectedAnswer(null);
       setIsCorrect(null);
     } else {
@@ -370,11 +344,6 @@ export function QuizModal({
     }
   };
 
-  useEffect(() => {
-    return () => {
-      clearFlashAutoWrongTimeout();
-    };
-  }, []);
 
   if (!currentWord) return null;
 
@@ -506,26 +475,26 @@ export function QuizModal({
                 </div>
               </div>
 
-              <div className="h-20 sm:h-24 md:h-28">
+              <div
+                className={`h-20 sm:h-24 md:h-28 transition-opacity duration-200 ${isRevealed ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}
+              >
                 <div className="grid grid-cols-2 gap-3 md:gap-6 h-full">
                   <button
                     onClick={handleFlashDontKnow}
-                    disabled={isAutoWrongPending}
-                    className="group relative h-full rounded-2xl overflow-hidden transition-all duration-300 hover:scale-105 active:scale-95 shadow-lg disabled:opacity-70 disabled:cursor-not-allowed"
+                    className="group relative h-full rounded-2xl overflow-hidden transition-all duration-300 hover:scale-105 active:scale-95 shadow-lg"
                   >
                     <div className="absolute inset-0 bg-gradient-to-br from-red-50 to-rose-100 opacity-100 group-hover:opacity-90 transition-opacity" />
                     <div className="relative h-full flex flex-col items-center justify-center gap-1.5 md:gap-2">
                       <div className="text-2xl md:text-3xl">😵</div>
                       <span className="text-base md:text-lg font-bold text-red-700">
-                        {isAutoWrongPending ? '확인 중...' : '몰라요'}
+몰라요
                       </span>
                     </div>
                   </button>
 
                   <button
                     onClick={() => handleFlashAnswer(true)}
-                    disabled={isAutoWrongPending}
-                    className="group relative h-full rounded-2xl overflow-hidden transition-all duration-300 hover:scale-105 active:scale-95 shadow-lg disabled:opacity-70 disabled:cursor-not-allowed"
+                    className="group relative h-full rounded-2xl overflow-hidden transition-all duration-300 hover:scale-105 active:scale-95 shadow-lg"
                   >
                     <div className="absolute inset-0 bg-gradient-to-br from-emerald-50 to-green-100 opacity-100 group-hover:opacity-90 transition-opacity" />
                     <div className="relative h-full flex flex-col items-center justify-center gap-1.5 md:gap-2">
