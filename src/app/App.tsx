@@ -578,6 +578,12 @@ export default function App() {
   const displayedTodayCount = showQuiz
     ? stats.todayCount + liveSessionSolved
     : stats.todayCount;
+  const displayedSessionSolved = showQuiz ? liveSessionSolved : 0;
+  const displayedSessionTotal = showQuiz
+    ? liveSessionTotal
+    : hasResumeData
+      ? pendingResumeTotal
+      : 0;
   const accuracyRate = stats.totalSolved > 0
     ? Math.round((stats.totalCorrect / stats.totalSolved) * 100)
     : 0;
