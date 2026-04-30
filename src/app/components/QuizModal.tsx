@@ -422,29 +422,16 @@ export function QuizModal({
                 <div className="absolute bottom-0 left-0 w-48 h-48 bg-gradient-to-tr from-pink-400/20 to-orange-400/20 rounded-full blur-3xl -ml-24 -mb-24" />
 
                 {/* Content */}
-                <div className="relative z-10 flex flex-col items-center justify-center px-6 py-16 md:px-12 md:py-24 min-h-[320px] md:min-h-[420px]">
-                  <div
-                    className={`
-                      text-center space-y-6 md:space-y-8 w-full max-w-2xl
-                      transition-transform duration-500
-                      ${isRevealed ? '-translate-y-5 md:-translate-y-6' : 'translate-y-0'}
-                    `}
-                  >
+                <div className="relative z-10 flex flex-col items-center justify-center px-6 py-16 md:px-12 md:py-24">
+                  <div className="text-center space-y-6 md:space-y-8 w-full max-w-2xl">
                     {/* Question */}
-                    <div
-                      className={`
-                        text-4xl sm:text-5xl md:text-6xl font-black tracking-tight
-                        bg-gradient-to-br from-gray-900 via-gray-700 to-gray-600 bg-clip-text
-                        text-transparent leading-tight transition-transform duration-500
-                        ${isRevealed ? '-translate-y-1 md:-translate-y-2' : 'translate-y-0'}
-                      `}
-                    >
+                    <div className="text-4xl sm:text-5xl md:text-6xl font-black tracking-tight bg-gradient-to-br from-gray-900 via-gray-700 to-gray-600 bg-clip-text text-transparent leading-tight">
                       {question}
                     </div>
 
                     {/* Answer (revealed) */}
                     {isRevealed && (
-                      <div className="space-y-4 md:space-y-5 transition-all duration-500 opacity-100 translate-y-0 animate-in fade-in slide-in-from-bottom-2">
+                      <div className="space-y-4 md:space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
                         <div className="h-px bg-gradient-to-r from-transparent via-gray-300 to-transparent" />
                         <div className="text-2xl sm:text-3xl md:text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600">
                           {answer}
@@ -469,11 +456,10 @@ export function QuizModal({
               </div>
 
               {isRevealed && (
-                <div className="h-20 sm:h-24 md:h-28">
-                  <div className="grid grid-cols-2 gap-3 md:gap-6 h-full">
+                <div className="grid grid-cols-2 gap-3 md:gap-6 animate-in fade-in slide-in-from-bottom-4 duration-300">
                     <button
                       onClick={handleFlashDontKnow}
-                      className="group relative h-full rounded-2xl overflow-hidden transition-all duration-300 hover:scale-105 active:scale-95 shadow-lg"
+                      className="group relative h-20 sm:h-24 md:h-28 rounded-2xl overflow-hidden transition-all duration-300 hover:scale-105 active:scale-95 shadow-lg"
                     >
                       <div className="absolute inset-0 bg-gradient-to-br from-red-50 to-rose-100 opacity-100 group-hover:opacity-90 transition-opacity" />
                       <div className="relative h-full flex flex-col items-center justify-center gap-1.5 md:gap-2">
@@ -484,7 +470,7 @@ export function QuizModal({
 
                     <button
                       onClick={() => handleFlashAnswer(true)}
-                      className="group relative h-full rounded-2xl overflow-hidden transition-all duration-300 hover:scale-105 active:scale-95 shadow-lg"
+                      className="group relative h-20 sm:h-24 md:h-28 rounded-2xl overflow-hidden transition-all duration-300 hover:scale-105 active:scale-95 shadow-lg"
                     >
                       <div className="absolute inset-0 bg-gradient-to-br from-emerald-50 to-green-100 opacity-100 group-hover:opacity-90 transition-opacity" />
                       <div className="relative h-full flex flex-col items-center justify-center gap-1.5 md:gap-2">
@@ -492,7 +478,6 @@ export function QuizModal({
                         <span className="text-base md:text-lg font-bold text-green-700">알아요</span>
                       </div>
                     </button>
-                  </div>
                 </div>
               )}
             </div>
