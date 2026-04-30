@@ -142,7 +142,12 @@ export default function App() {
     dailyLog: {},
   });
 
-  const [todayGoal] = useState(30);
+  const [todayGoal, setTodayGoal] = useState(() => {
+    const savedGoal = safeStorage.getItem('toeic_today_goal_v1');
+    if (!savedGoal) return 30;
+    const parsedGoal = Number(savedGoal);
+    return Number.isFinite(parsedGoal) && parsedGoal > 0 ? parsedGoal : 30;
+  });
   const [showQuiz, setShowQuiz] = useState(false);
   const [showDaySelector, setShowDaySelector] = useState(false);
   const [quizWords, setQuizWords] = useState<Word[]>([]);
@@ -217,6 +222,13 @@ export default function App() {
         setWrongWords([]);
       }
     }
+  };
+
+  const updateTodayGoal = (value: string) => {
+    const parsedGoal = Number(value);
+    if (!Number.isFinite(parsedGoal) || parsedGoal <= 0) return;
+    setTodayGoal(parsedGoal);
+    safeStorage.setItem('toeic_today_goal_v1', String(parsedGoal));
   };
 
   const resumeStudy = () => {
@@ -1269,6 +1281,35 @@ export default function App() {
             </div>
 
             <div className="space-y-6 md:space-y-8">
+              {/* 오늘 목표량 */}
+              <div className="space-y-3 md:space-y-4">
+                <h3 className="text-lg md:text-xl font-bold text-gray-900 flex items-center gap-2">
+                  <div className="w-1 h-5 md:h-6 bg-gradient-to-b from-emerald-500 to-teal-500 rounded-full" />
+                  오늘 목표량
+                </h3>
+
+                <div className="flex items-center justify-between p-4 md:p-6 rounded-2xl bg-gray-50 border border-gray-100">
+                  <div className="flex-1 pr-4">
+                    <div className="font-semibold text-gray-900 mb-1 text-sm md:text-base">일일 목표 문제 수</div>
+                    <div className="text-xs md:text-sm text-gray-500">홈 탭 진행도 기준</div>
+                  </div>
+                  <Select value={String(todayGoal)} onValueChange={updateTodayGoal}>
+                    <SelectTrigger className="w-32 md:w-44 h-10 md:h-11 rounded-xl text-xs md:text-sm">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="10">10문제</SelectItem>
+                      <SelectItem value="20">20문제</SelectItem>
+                      <SelectItem value="30">30문제</SelectItem>
+                      <SelectItem value="50">50문제</SelectItem>
+                      <SelectItem value="100">100문제</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <Separator />
+
               {/* 문제 순서 */}
               <div className="space-y-3 md:space-y-4">
                 <h3 className="text-lg md:text-xl font-bold text-gray-900 flex items-center gap-2">
