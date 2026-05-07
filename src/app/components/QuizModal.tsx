@@ -351,73 +351,69 @@ export function QuizModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-300">
-      <div className="w-full max-w-3xl bg-white rounded-3xl shadow-2xl overflow-hidden max-h-[95vh] flex flex-col animate-in zoom-in-95 duration-300">
+    <div className="fixed inset-0 z-50 bg-black/55 backdrop-blur-sm flex items-center justify-center p-3 md:p-4">
+      <div className="w-full max-w-2xl bg-white rounded-3xl shadow-2xl overflow-hidden max-h-[95vh] flex flex-col">
         {/* Header */}
-        <div className="p-6 md:p-8 border-b border-gray-100">
-          <div className="flex items-start justify-between mb-4">
-            <div className="flex items-center gap-3 flex-wrap">
-              <div className="px-4 py-2 rounded-full bg-gradient-to-r from-purple-50 to-pink-50 border border-purple-200">
-                <span className="text-sm font-bold text-purple-700">
+        <div className="p-4 md:p-6 border-b border-gray-100">
+          <div className="flex items-start justify-between gap-3 mb-4">
+            <div className="flex items-center gap-2 flex-wrap">
+              <div className="px-3 py-1.5 rounded-full bg-purple-50 border border-purple-200">
+                <span className="text-xs md:text-sm font-bold text-purple-700">
                   DAY{currentWord.day} · {DAY_CATEGORIES[currentWord.day]}
                 </span>
               </div>
-              <div className="px-4 py-2 rounded-full bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200">
-                <span className="text-sm font-bold text-blue-700">{currentIndex + 1} / {words.length}</span>
+              <div className="px-3 py-1.5 rounded-full bg-blue-50 border border-blue-200">
+                <span className="text-xs md:text-sm font-bold text-blue-700">{currentIndex + 1} / {words.length}</span>
               </div>
-              <div className="px-4 py-2 rounded-full bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200">
-                <span className="text-sm font-bold text-green-700">✓ {score}</span>
+              <div className="px-3 py-1.5 rounded-full bg-green-50 border border-green-200">
+                <span className="text-xs md:text-sm font-bold text-green-700">✓ {score}</span>
               </div>
-              <div className="px-4 py-2 rounded-full bg-gradient-to-r from-red-50 to-rose-50 border border-red-200">
-                <span className="text-sm font-bold text-red-700">✗ {wrongCount}</span>
+              <div className="px-3 py-1.5 rounded-full bg-red-50 border border-red-200">
+                <span className="text-xs md:text-sm font-bold text-red-700">✗ {wrongCount}</span>
               </div>
               {timerOn && normalizedTimerMode === 'perQuestion' && (
-                <div className="px-4 py-2 rounded-full bg-gradient-to-r from-orange-50 to-amber-50 border border-orange-200">
-                  <span className="text-sm font-bold text-orange-700">문항 {formatTime(perQuestionLeft)}</span>
+                <div className="px-3 py-1.5 rounded-full bg-orange-50 border border-orange-200">
+                  <span className="text-xs md:text-sm font-bold text-orange-700">문항 {formatTime(perQuestionLeft)}</span>
                 </div>
               )}
               {timerOn && normalizedTimerMode === 'session' && (
-                <div className="px-4 py-2 rounded-full bg-gradient-to-r from-orange-50 to-amber-50 border border-orange-200">
-                  <span className="text-sm font-bold text-orange-700">세션 {formatTime(sessionLeft)}</span>
+                <div className="px-3 py-1.5 rounded-full bg-orange-50 border border-orange-200">
+                  <span className="text-xs md:text-sm font-bold text-orange-700">세션 {formatTime(sessionLeft)}</span>
                 </div>
               )}
             </div>
             <button
               onClick={handleCloseWithProgressSave}
-              className="p-2 rounded-full hover:bg-gray-100 transition-colors duration-200 ml-4"
+              className="p-2 rounded-full hover:bg-gray-100 transition-colors duration-200 flex-shrink-0"
             >
               <X className="w-5 h-5 text-gray-500" />
             </button>
           </div>
           <div className="relative h-2 bg-gray-100 rounded-full overflow-hidden">
             <div
-              className="absolute inset-y-0 left-0 bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 rounded-full transition-all duration-500"
+              className="absolute inset-y-0 left-0 bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 rounded-full transition-all duration-300"
               style={{ width: `${((currentIndex + 1) / words.length) * 100}%` }}
             />
           </div>
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-auto p-6 md:p-8">
+        <div className="flex-1 overflow-auto p-4 md:p-6">
           {mode === 'flash' ? (
             <div className="space-y-6 md:space-y-8">
               <div
                 className={`
                   relative rounded-3xl overflow-hidden
                   bg-gradient-to-br from-white via-slate-50 to-blue-50/30
-                  border border-gray-200/50 shadow-2xl
-                  transition-all duration-300
+                  border border-gray-200 shadow-xl
+                  transition-all duration-200
                   ${!isRevealed
-                    ? 'cursor-pointer hover:shadow-3xl hover:scale-[1.01] active:scale-[0.99]'
+                    ? 'cursor-pointer hover:shadow-2xl active:scale-[0.99]'
                     : 'shadow-xl'
                   }
                 `}
                 onClick={!isRevealed ? handleFlashReveal : undefined}
               >
-                {/* Decorative gradient orbs */}
-                <div className="absolute top-0 right-0 w-48 h-48 bg-gradient-to-br from-blue-400/20 to-purple-400/20 rounded-full blur-3xl -mr-24 -mt-24" />
-                <div className="absolute bottom-0 left-0 w-48 h-48 bg-gradient-to-tr from-pink-400/20 to-orange-400/20 rounded-full blur-3xl -ml-24 -mb-24" />
-
                 {/* Content */}
                 <div
                   className={`
@@ -438,9 +434,9 @@ export function QuizModal({
 
                     {/* Answer (revealed) */}
                     {isRevealed && (
-                      <div className="space-y-4 md:space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                      <div className="space-y-4 md:space-y-6 animate-in fade-in duration-300">
                         <div className="h-px bg-gradient-to-r from-transparent via-gray-300 to-transparent" />
-                        <div className="text-2xl sm:text-3xl md:text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600">
+                        <div className="text-2xl sm:text-3xl md:text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 break-words">
                           {answer}
                         </div>
                       </div>
@@ -462,10 +458,10 @@ export function QuizModal({
               </div>
 
               {isRevealed && (
-                <div className="grid grid-cols-2 gap-3 md:gap-6 animate-in fade-in slide-in-from-bottom-4 duration-300">
+                <div className="grid grid-cols-2 gap-3 md:gap-5 animate-in fade-in duration-300">
                     <button
                       onClick={handleFlashDontKnow}
-                      className="group relative h-20 sm:h-24 md:h-28 rounded-2xl overflow-hidden transition-all duration-300 hover:scale-105 active:scale-95 shadow-lg"
+                      className="group relative h-20 sm:h-24 md:h-28 rounded-2xl overflow-hidden transition-all duration-200 hover:scale-[1.02] active:scale-95 shadow-md"
                     >
                       <div className="absolute inset-0 bg-gradient-to-br from-red-50 to-rose-100 opacity-100 group-hover:opacity-90 transition-opacity" />
                       <div className="relative h-full flex flex-col items-center justify-center gap-1.5 md:gap-2">
@@ -476,7 +472,7 @@ export function QuizModal({
 
                     <button
                       onClick={() => handleFlashAnswer(true)}
-                      className="group relative h-20 sm:h-24 md:h-28 rounded-2xl overflow-hidden transition-all duration-300 hover:scale-105 active:scale-95 shadow-lg"
+                      className="group relative h-20 sm:h-24 md:h-28 rounded-2xl overflow-hidden transition-all duration-200 hover:scale-[1.02] active:scale-95 shadow-md"
                     >
                       <div className="absolute inset-0 bg-gradient-to-br from-emerald-50 to-green-100 opacity-100 group-hover:opacity-90 transition-opacity" />
                       <div className="relative h-full flex flex-col items-center justify-center gap-1.5 md:gap-2">
@@ -489,10 +485,9 @@ export function QuizModal({
             </div>
           ) : mode === 'mc' ? (
             <div className="space-y-6 md:space-y-8">
-              <div className="relative rounded-3xl overflow-hidden bg-gradient-to-br from-white via-slate-50 to-indigo-50/30 border border-gray-200/50 shadow-2xl p-8 md:p-12">
-                <div className="absolute top-0 right-0 w-32 h-32 md:w-48 md:h-48 bg-gradient-to-br from-blue-400/20 to-purple-400/20 rounded-full blur-3xl -mr-16 md:-mr-24 -mt-16 md:-mt-24" />
+              <div className="relative rounded-3xl overflow-hidden bg-gradient-to-br from-white via-slate-50 to-indigo-50/30 border border-gray-200 shadow-xl p-8 md:p-12">
                 <div className="relative z-10 text-center">
-                  <div className="text-3xl sm:text-4xl md:text-6xl font-black tracking-tight bg-gradient-to-br from-gray-900 via-gray-700 to-gray-600 bg-clip-text text-transparent leading-tight px-2">
+                  <div className="text-3xl sm:text-4xl md:text-6xl font-black tracking-tight bg-gradient-to-br from-gray-900 via-gray-700 to-gray-600 bg-clip-text text-transparent leading-tight break-words px-2">
                     {question}
                   </div>
                 </div>
@@ -511,17 +506,17 @@ export function QuizModal({
                       onClick={() => !selectedAnswer && handleMCAnswer(choice)}
                       disabled={!!selectedAnswer}
                       className={`
-                        w-full group relative rounded-2xl p-4 md:p-6 text-left transition-all duration-300
+                        w-full group relative rounded-2xl p-4 md:p-6 text-left transition-all duration-200
                         ${!selectedAnswer
-                          ? 'bg-white hover:bg-gradient-to-r hover:from-blue-50 hover:to-purple-50 border-2 border-gray-200 hover:border-blue-300 hover:shadow-lg hover:scale-[1.02] active:scale-[0.98] cursor-pointer'
+                          ? 'bg-white hover:bg-blue-50 border-2 border-gray-200 hover:border-blue-300 hover:shadow-md active:scale-[0.99] cursor-pointer'
                           : ''
                         }
                         ${showCorrect
-                          ? 'bg-gradient-to-r from-emerald-50 to-green-50 border-2 border-green-400 shadow-lg shadow-green-200/50'
+                          ? 'bg-emerald-50 border-2 border-green-400 shadow-md shadow-green-200/50'
                           : ''
                         }
                         ${showWrong
-                          ? 'bg-gradient-to-r from-red-50 to-rose-50 border-2 border-red-400 shadow-lg shadow-red-200/50'
+                          ? 'bg-red-50 border-2 border-red-400 shadow-md shadow-red-200/50'
                           : ''
                         }
                         ${selectedAnswer && !isSelected && !isCorrectChoice
@@ -562,14 +557,14 @@ export function QuizModal({
           <div className="flex gap-2 md:gap-3 mt-6 md:mt-8">
             <button
               onClick={() => speak(currentWord.english)}
-              className="flex-1 flex flex-col md:flex-row items-center justify-center gap-1 md:gap-2 py-3 rounded-xl bg-gray-50 hover:bg-gray-100 border border-gray-200 transition-all duration-200 hover:scale-105 active:scale-95"
+              className="flex-1 flex flex-col md:flex-row items-center justify-center gap-1 md:gap-2 py-3 rounded-xl bg-gray-50 hover:bg-gray-100 border border-gray-200 transition-all duration-200 active:scale-95"
             >
               <Volume2 className="w-4 h-4 text-gray-600" />
               <span className="text-xs md:text-sm font-semibold text-gray-700">발음</span>
             </button>
             <button
               onClick={() => toggleFavorite(currentWord.english)}
-              className={`flex-1 flex flex-col md:flex-row items-center justify-center gap-1 md:gap-2 py-3 rounded-xl border transition-all duration-200 hover:scale-105 active:scale-95 ${
+              className={`flex-1 flex flex-col md:flex-row items-center justify-center gap-1 md:gap-2 py-3 rounded-xl border transition-all duration-200 active:scale-95 ${
                 favorites.has(currentWord.english)
                   ? 'bg-yellow-50 border-yellow-300 hover:bg-yellow-100'
                   : 'bg-gray-50 border-gray-200 hover:bg-gray-100'
@@ -582,7 +577,7 @@ export function QuizModal({
             </button>
             <button
               onClick={() => openNaverDict(currentWord.english)}
-              className="flex-1 flex flex-col md:flex-row items-center justify-center gap-1 md:gap-2 py-3 rounded-xl bg-gray-50 hover:bg-gray-100 border border-gray-200 transition-all duration-200 hover:scale-105 active:scale-95"
+              className="flex-1 flex flex-col md:flex-row items-center justify-center gap-1 md:gap-2 py-3 rounded-xl bg-gray-50 hover:bg-gray-100 border border-gray-200 transition-all duration-200 active:scale-95"
             >
               <BookOpen className="w-4 h-4 text-gray-600" />
               <span className="text-xs md:text-sm font-semibold text-gray-700">사전</span>

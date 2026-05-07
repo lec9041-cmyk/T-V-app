@@ -412,7 +412,30 @@ export default function App() {
     }
   };
 
-  const startQuiz = () => {
+  const getFilteredWordsBySelection = () => {
+    let filteredWords = words.filter(w => selectedDays.includes(w.day));
+
+    filteredWords = filteredWords.filter(w => {
+      return selectedRanges.some(range => {
+        const [min, max] = getWordNumberRange(range);
+        return w.no >= min && w.no <= max;
+      });
+    });
+
+    return filteredWords;
+  };
+
+  const orderWordsForSession = (targetWords: Word[]) => {
+    const copied = [...targetWords];
+
+    if (settings.orderMode !== 'random') {
+      return copied;
+    }
+
+    return copied.sort(() => Math.random() - 0.5);
+  };
+
+  const startQuickQuiz = () => {
     if (isWordsLoading) {
       alert('단어 데이터를 불러오는 중입니다. 잠시 후 다시 시도해주세요.');
       return;
@@ -424,36 +447,55 @@ export default function App() {
       return;
     }
 
-    console.log('총 단어 수:', words.length);
-    console.log('선택된 DAY:', selectedDays);
-    console.log('선택된 범위:', selectedRanges);
-
-    // Filter by selected days
-    let filteredWords = words.filter(w => selectedDays.includes(w.day));
-    console.log('DAY 필터 후:', filteredWords.length, '개');
-
-    // Filter by selected ranges
-    filteredWords = filteredWords.filter(w => {
-      return selectedRanges.some(range => {
-        const [min, max] = getWordNumberRange(range);
-        return w.no >= min && w.no <= max;
-      });
-    });
-    console.log('범위 필터 후:', filteredWords.length, '개');
+    const filteredWords = getFilteredWordsBySelection();
 
     if (filteredWords.length === 0) {
-      alert('선택한 조건에 맞는 단어가 없습니다.\n\n디버그 정보:\n- 총 단어: ' + words.length + '개\n- 선택 DAY: ' + selectedDays.join(', ') + '\n- 선택 범위: ' + selectedRanges.join(', ') + '\n\n브라우저 콘솔(F12)에서 자세한 정보를 확인하세요.');
+      alert('선택한 조건에 맞는 단어가 없습니다.');
       return;
     }
 
-    const selectedWords = filteredWords
-      .sort(() => settings.orderMode === 'random' ? Math.random() - 0.5 : 1)
-      .slice(0, Math.min(parseInt(count), filteredWords.length));
+    const orderedWords = orderWordsForSession(filteredWords);
+    const requestedCount = Number.isFinite(Number(count)) ? Number(count) : 30;
+    const selectedWords = orderedWords.slice(
+      0,
+      Math.min(requestedCount, orderedWords.length)
+    );
 
     setQuizWords(selectedWords);
     setLiveSessionSolved(0);
     setLiveSessionTotal(selectedWords.length);
     setShowQuiz(true);
+  };
+
+  const startRangeQuiz = () => {
+    if (isWordsLoading) {
+      alert('단어 데이터를 불러오는 중입니다. 잠시 후 다시 시도해주세요.');
+      return;
+    }
+
+    if (selectedDays.length === 0) {
+      alert('DAY를 먼저 선택해주세요!');
+      setShowDaySelector(true);
+      return;
+    }
+
+    const filteredWords = getFilteredWordsBySelection();
+
+    if (filteredWords.length === 0) {
+      alert('선택한 조건에 맞는 단어가 없습니다.');
+      return;
+    }
+
+    const selectedWords = orderWordsForSession(filteredWords);
+
+    setQuizWords(selectedWords);
+    setLiveSessionSolved(0);
+    setLiveSessionTotal(selectedWords.length);
+    setShowQuiz(true);
+  };
+
+  const startQuiz = () => {
+    startQuickQuiz();
   };
 
   const applySessionStats = (progress: QuizSessionProgress) => {
@@ -599,6 +641,11 @@ export default function App() {
   const accuracyRate = stats.totalSolved > 0
     ? Math.round((stats.totalCorrect / stats.totalSolved) * 100)
     : 0;
+  const selectedRangeWordCount = useMemo(() => {
+    if (words.length === 0 || selectedDays.length === 0) return 0;
+    return getFilteredWordsBySelection().length;
+  }, [words, selectedDays, selectedRanges]);
+  const allRangesSelected = ['core', 'basic', '800', '900'].every(range => selectedRanges.includes(range));
 
   const wrongWordItems = useMemo(() => {
     return [...wrongWords]
@@ -960,7 +1007,24 @@ export default function App() {
 
             {/* Word Range Selection */}
             <div className="space-y-3 p-6 rounded-2xl bg-gradient-to-br from-gray-50 to-white border-2 border-gray-200">
-              <h4 className="font-bold text-gray-900 mb-3">학습 범위 선택</h4>
+              <div className="flex items-center justify-between gap-3 mb-3">
+                <div>
+                  <h4 className="font-bold text-gray-900">학습 범위 선택</h4>
+                  <p className="text-xs text-gray-500 mt-1">
+                    선택한 DAY {selectedDays.length}개 · 총 {selectedRangeWordCount}개
+                  </p>
+                </div>
+                <button
+                  onClick={() => setSelectedRanges(['core', 'basic', '800', '900'])}
+                  className={`px-4 py-2 rounded-xl text-sm font-bold border-2 transition-all duration-200 flex-shrink-0 ${
+                    allRangesSelected
+                      ? 'bg-gradient-to-r from-gray-900 to-gray-700 border-transparent text-white shadow-md'
+                      : 'bg-white border-gray-300 text-gray-700 hover:border-gray-400'
+                  }`}
+                >
+                  전체
+                </button>
+              </div>
               <div className="grid grid-cols-2 gap-3">
                 {[
                   { id: 'core', label: '핵심단어', range: '1-40', color: 'blue' },
@@ -1007,12 +1071,12 @@ export default function App() {
 
             <Button
               size="lg"
-              onClick={startQuiz}
+              onClick={startRangeQuiz}
               disabled={selectedRanges.length === 0 || isWordsLoading}
               className="w-full h-14 md:h-16 text-base md:text-lg font-semibold rounded-2xl bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white shadow-2xl shadow-blue-500/30 transition-all duration-300 hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Zap className="w-4 h-4 md:w-5 md:h-5 mr-2" />
-              {isWordsLoading ? '단어 로딩 중...' : '학습 시작'}
+              {isWordsLoading ? '단어 로딩 중...' : '선택한 범위 학습 시작'}
             </Button>
 
             {/* Favorites Section */}
@@ -1076,13 +1140,7 @@ export default function App() {
                 XP {stats.xp}/{calculateXPForLevel(stats.level)}
               </Badge>
               <Badge variant="outline" className="px-3 md:px-4 py-1.5 md:py-2 text-xs md:text-sm font-bold border-2 bg-green-50 text-green-700 border-green-300">
-                학습 가능 {(() => {
-                  const filtered = words.filter(w => selectedDays.includes(w.day) && selectedRanges.some(range => {
-                    const [min, max] = getWordNumberRange(range);
-                    return w.no >= min && w.no <= max;
-                  }));
-                  return filtered.length;
-                })()}개
+                학습 가능 {selectedRangeWordCount}개
               </Badge>
             </div>
           </div>
