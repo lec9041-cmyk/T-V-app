@@ -429,7 +429,7 @@ export function QuizModal({
 
                     {/* Answer (revealed) */}
                     {isRevealed && (
-                      <div className="space-y-4 md:space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300 will-change-transform">
+                      <div className="space-y-4 md:space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300 will-change-transform transform-gpu">
                         <div className="h-px bg-gradient-to-r from-transparent via-gray-300 to-transparent" />
                         <div className="text-2xl sm:text-3xl md:text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 break-words">
                           {answer}
@@ -453,7 +453,7 @@ export function QuizModal({
               </div>
 
               {isRevealed && (
-                <div className="grid grid-cols-2 gap-3 md:gap-6 animate-in fade-in slide-in-from-bottom-2 duration-300 will-change-transform">
+                <div className="grid grid-cols-2 gap-3 md:gap-6 animate-in fade-in slide-in-from-bottom-2 duration-300 will-change-transform transform-gpu">
                     <button
                       onClick={handleFlashDontKnow}
                       className="group relative h-20 sm:h-24 md:h-28 rounded-2xl overflow-hidden transition-transform duration-300 hover:scale-[1.02] active:scale-95 shadow-lg"
