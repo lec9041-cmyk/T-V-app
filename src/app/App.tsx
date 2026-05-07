@@ -1704,6 +1704,7 @@ export default function App() {
           onComplete={handleWrittenExamComplete}
           onClose={() => setShowWrittenExam(false)}
           onReviewWrongWords={handleWrittenExamReviewWrongWords}
+          onRegisterWrongWords={(wrongWords) => mergeWrongWords(wrongWords)}
         />
       )}
 

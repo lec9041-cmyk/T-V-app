@@ -36,6 +36,7 @@ interface WrittenExamModalProps {
   onComplete: (progress: QuizSessionProgress) => void;
   onClose: () => void;
   onReviewWrongWords: (wrongWords: Word[]) => void;
+  onRegisterWrongWords?: (wrongWords: Word[]) => void;
 }
 
 interface ExamItem {
@@ -84,6 +85,7 @@ export function WrittenExamModal({
   onComplete,
   onClose,
   onReviewWrongWords,
+  onRegisterWrongWords,
 }: WrittenExamModalProps) {
   const [examItems, setExamItems] = useState<ExamItem[]>(() =>
     words.map((word) => ({
@@ -98,6 +100,7 @@ export function WrittenExamModal({
   const [isGraded, setIsGraded] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [resultItems, setResultItems] = useState<WrittenExamResultItem[]>([]);
+  const [hasRegisteredWrongWords, setHasRegisteredWrongWords] = useState(false);
 
   const totalPages = Math.max(1, Math.ceil(examItems.length / PAGE_SIZE));
   const currentPageItems = examItems.slice(currentPage * PAGE_SIZE, currentPage * PAGE_SIZE + PAGE_SIZE);
@@ -120,6 +123,21 @@ export function WrittenExamModal({
 
     return { total, correct, wrong, accuracy };
   }, [resultItems]);
+
+  const gradedSummary = useMemo(() => {
+    const total = examItems.length;
+    const correct = examItems.filter((item) => item.finalCorrect === true).length;
+    const wrong = examItems.filter((item) => item.finalCorrect !== true).length;
+    const empty = examItems.filter((item) => item.answerText.trim() === '').length;
+
+    return { total, correct, wrong, empty };
+  }, [examItems]);
+
+  const currentWrongWords = useMemo(() => (
+    examItems
+      .filter((item) => item.finalCorrect !== true)
+      .map((item) => item.word)
+  ), [examItems]);
 
   const updateAnswer = (itemIndex: number, answerText: string) => {
     if (isGraded) return;
@@ -151,6 +169,13 @@ export function WrittenExamModal({
     )));
   };
 
+  const registerWrongWords = () => {
+    if (!onRegisterWrongWords || hasRegisteredWrongWords || currentWrongWords.length === 0) return;
+
+    onRegisterWrongWords(currentWrongWords);
+    setHasRegisteredWrongWords(true);
+  };
+
   const submitFinal = () => {
     const results = examItems.map((item) => ({
       word: item.word,
@@ -167,7 +192,7 @@ export function WrittenExamModal({
       solvedCount: examItems.length,
       correctCount,
       wrongCount: examItems.length - correctCount,
-      wrongWords,
+      wrongWords: hasRegisteredWrongWords ? [] : wrongWords,
       completed: true,
       currentIndex: words.length,
       remainingWords: [],
@@ -189,6 +214,7 @@ export function WrittenExamModal({
     setIsGraded(false);
     setIsSubmitted(false);
     setResultItems([]);
+    setHasRegisteredWrongWords(false);
   };
 
   if (isSubmitted) {
@@ -297,6 +323,16 @@ export function WrittenExamModal({
         </div>
 
         <div className="flex-1 overflow-auto p-3 md:p-4 space-y-2">
+          {isGraded && (
+            <div className="rounded-2xl border border-indigo-100 bg-indigo-50/70 px-3 py-2 text-xs md:text-sm font-bold text-indigo-800 flex flex-wrap gap-x-3 gap-y-1">
+              <span>가채점 결과</span>
+              <span>총 {gradedSummary.total}개</span>
+              <span>정답 {gradedSummary.correct}개</span>
+              <span>오답 {gradedSummary.wrong}개</span>
+              <span>미입력 {gradedSummary.empty}개</span>
+            </div>
+          )}
+
           {currentPageItems.map((item, offset) => {
             const itemIndex = currentPage * PAGE_SIZE + offset;
             const questionText = getQuestionText(item.word, direction);
@@ -330,15 +366,9 @@ export function WrittenExamModal({
                         <Badge className="bg-indigo-100 text-indigo-700 hover:bg-indigo-100">수동 수정됨</Badge>
                       )}
                     </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs">
-                      <div className="rounded-xl bg-white border border-gray-200 p-2 break-words">
-                        <span className="font-bold text-gray-500">내 답: </span>
-                        <span className="font-semibold text-gray-900">{item.answerText.trim() || '미입력'}</span>
-                      </div>
-                      <div className="rounded-xl bg-emerald-50 border border-emerald-100 p-2 break-words">
-                        <span className="font-bold text-emerald-600">정답: </span>
-                        <span className="font-semibold text-gray-900">{correctAnswer}</span>
-                      </div>
+                    <div className="rounded-xl bg-emerald-50 border border-emerald-100 p-2 text-xs break-words">
+                      <span className="font-bold text-emerald-600">정답: </span>
+                      <span className="font-semibold text-gray-900">{correctAnswer}</span>
                     </div>
 
                     <div className="flex flex-wrap gap-1.5">
@@ -360,19 +390,30 @@ export function WrittenExamModal({
 
         <div className="border-t border-gray-100 bg-white p-3 md:p-4 flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-between">
           <div className="text-sm font-semibold text-gray-500">미입력 {emptyAnswerCount}개</div>
-          <div className="flex gap-2 sm:justify-end">
+          <div className="flex flex-wrap gap-2 sm:justify-end">
             <Button variant="outline" onClick={() => setCurrentPage((page) => Math.max(page - 1, 0))} disabled={currentPage === 0} className="rounded-xl flex-1 sm:flex-none">
               이전
             </Button>
-            {currentPage < totalPages - 1 ? (
+            {currentPage < totalPages - 1 && (
               <Button onClick={() => setCurrentPage((page) => Math.min(page + 1, totalPages - 1))} className="rounded-xl flex-1 sm:flex-none">
                 다음
               </Button>
-            ) : isGraded ? (
-              <Button onClick={submitFinal} className="rounded-xl flex-1 sm:flex-none bg-gray-900 hover:bg-gray-800">
-                최종 제출
-              </Button>
-            ) : (
+            )}
+            {isGraded ? (
+              <>
+                <Button
+                  variant="outline"
+                  onClick={registerWrongWords}
+                  disabled={!onRegisterWrongWords || hasRegisteredWrongWords || currentWrongWords.length === 0}
+                  className="rounded-xl flex-1 sm:flex-none border-rose-200 px-3 py-2 text-sm text-rose-700 hover:bg-rose-50 disabled:text-gray-400"
+                >
+                  {hasRegisteredWrongWords ? '등록 완료' : '오답 단어 등록'}
+                </Button>
+                <Button onClick={submitFinal} className="rounded-xl flex-1 sm:flex-none bg-gray-900 hover:bg-gray-800">
+                  최종 제출
+                </Button>
+              </>
+            ) : currentPage === totalPages - 1 && (
               <Button onClick={gradeExam} className="rounded-xl flex-1 sm:flex-none bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700">
                 가채점하기
               </Button>
