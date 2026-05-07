@@ -9,6 +9,9 @@ import { QuizModal } from './components/QuizModal';
 import { DaySelector } from './components/DaySelector';
 import { Play, RotateCcw, Target, TrendingUp, Zap, Volume2, Timer, RefreshCw, Eye, Calendar as CalendarIcon, Home, BookOpen, BarChart3, Settings as SettingsIcon, ChevronDown, Check, Star } from 'lucide-react';
 
+const PER_QUESTION_TIMER_OPTIONS = ['3', '5', '7', '10', '15', '20', '30', '45', '60'];
+const SESSION_TIMER_OPTIONS = ['1', '3', '5', '10', '15', '20', '30'];
+
 const DAY_CATEGORIES: { [key: number]: string } = {
   1: '채용',
   2: '규직,법률',
@@ -181,6 +184,11 @@ export default function App() {
     speakOnReveal: false,
     wrongMark: true,
   });
+  const timerSummary = !settings.timerOn
+    ? 'OFF'
+    : settings.timerMode === 'session'
+    ? `세션 ${settings.sessionMin}분`
+    : `문항별 ${settings.perQSec}초`;
 
   // Load data on mount
   useEffect(() => {
@@ -774,6 +782,69 @@ export default function App() {
               <Play className="w-6 h-6 mr-2 fill-current" />
               {isWordsLoading ? '단어 로딩 중...' : '학습 시작'}
             </Button>
+
+            {/* Timer Settings Summary */}
+            <div className="rounded-2xl p-4 bg-white border border-gray-200 shadow-sm">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <div className="text-sm font-semibold text-gray-900 flex items-center gap-2">
+                    <Timer className="w-4 h-4 text-orange-500" />
+                    타이머 설정
+                  </div>
+                  <div className="text-xs text-gray-500 mt-1">현재 상태: {timerSummary}</div>
+                </div>
+                <Switch checked={settings.timerOn} onCheckedChange={(v) => setSettings({...settings, timerOn: v})} />
+              </div>
+
+              {settings.timerOn && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4">
+                  <div className="space-y-2">
+                    <div className="text-xs text-gray-500">타이머 모드</div>
+                    <Select value={settings.timerMode} onValueChange={(v) => setSettings({...settings, timerMode: v})}>
+                      <SelectTrigger className="h-10 rounded-xl text-xs md:text-sm">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="perQuestion">문항별</SelectItem>
+                        <SelectItem value="session">세션 전체</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {settings.timerMode === 'perQuestion' && (
+                    <div className="space-y-2">
+                      <div className="text-xs text-gray-500">문항 제한(초)</div>
+                      <Select value={settings.perQSec} onValueChange={(v) => setSettings({...settings, perQSec: v})}>
+                        <SelectTrigger className="h-10 rounded-xl text-xs md:text-sm">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {PER_QUESTION_TIMER_OPTIONS.map((seconds) => (
+                            <SelectItem key={seconds} value={seconds}>{seconds}초</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+
+                  {settings.timerMode === 'session' && (
+                    <div className="space-y-2">
+                      <div className="text-xs text-gray-500">세션 제한(분)</div>
+                      <Select value={settings.sessionMin} onValueChange={(v) => setSettings({...settings, sessionMin: v})}>
+                        <SelectTrigger className="h-10 rounded-xl text-xs md:text-sm">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {SESSION_TIMER_OPTIONS.map((minutes) => (
+                            <SelectItem key={minutes} value={minutes}>{minutes}분</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
 
             {/* DAY Selection */}
             <div>
@@ -1443,10 +1514,9 @@ export default function App() {
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="5">5초</SelectItem>
-                          <SelectItem value="10">10초</SelectItem>
-                          <SelectItem value="15">15초</SelectItem>
-                          <SelectItem value="20">20초</SelectItem>
+                          {PER_QUESTION_TIMER_OPTIONS.map((seconds) => (
+                            <SelectItem key={seconds} value={seconds}>{seconds}초</SelectItem>
+                          ))}
                         </SelectContent>
                       </Select>
                     </div>
@@ -1457,10 +1527,9 @@ export default function App() {
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="3">3분</SelectItem>
-                          <SelectItem value="5">5분</SelectItem>
-                          <SelectItem value="10">10분</SelectItem>
-                          <SelectItem value="15">15분</SelectItem>
+                          {SESSION_TIMER_OPTIONS.map((minutes) => (
+                            <SelectItem key={minutes} value={minutes}>{minutes}분</SelectItem>
+                          ))}
                         </SelectContent>
                       </Select>
                     </div>
