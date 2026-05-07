@@ -1475,29 +1475,52 @@ export default function App() {
 
               <Separator />
 
-              {/* 타임어택 */}
-              <div className="space-y-3 md:space-y-4">
-                <h3 className="text-lg md:text-xl font-bold text-gray-900 flex items-center gap-2">
-                  <div className="w-1 h-5 md:h-6 bg-gradient-to-b from-orange-500 to-red-500 rounded-full" />
-                  타임어택
-                </h3>
-
-                <div className="flex items-center justify-between p-4 md:p-6 rounded-2xl bg-gray-50 border border-gray-100">
-                  <div>
-                    <div className="font-semibold text-gray-900 mb-1 text-sm md:text-base flex items-center gap-2">
-                      <Timer className="w-4 h-4" />
-                      타임어택 활성화
+              {/* 타이머 설정 */}
+              <div className="rounded-2xl bg-white border border-gray-200 shadow-sm p-4 md:p-6">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="space-y-2">
+                    <h3 className="text-lg md:text-xl font-bold text-gray-900 flex items-center gap-2">
+                      <Timer className="w-5 h-5 text-orange-500" />
+                      타이머 설정
+                    </h3>
+                    <div
+                      className={`inline-flex items-center rounded-full px-3 py-1 text-xs md:text-sm font-bold ${
+                        settings.timerOn
+                          ? 'bg-orange-50 text-orange-700 border border-orange-200'
+                          : 'bg-gray-100 text-gray-600 border border-gray-200'
+                      }`}
+                    >
+                      {settings.timerOn
+                        ? settings.timerMode === 'session'
+                          ? `세션 ${settings.sessionMin}분`
+                          : `문항별 ${settings.perQSec}초`
+                        : '타이머 OFF'}
                     </div>
-                    <div className="text-xs md:text-sm text-gray-500">시간 제한</div>
                   </div>
-                  <Switch checked={settings.timerOn} onCheckedChange={(v) => setSettings({...settings, timerOn: v})} />
+                  <Switch
+                    checked={settings.timerOn}
+                    onCheckedChange={(checked) =>
+                      setSettings((prev) => ({
+                        ...prev,
+                        timerOn: checked,
+                      }))
+                    }
+                  />
                 </div>
 
                 {settings.timerOn && (
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-5">
                     <div className="space-y-2">
                       <div className="text-xs md:text-sm text-gray-500">타이머 모드</div>
-                      <Select value={settings.timerMode} onValueChange={(v) => setSettings({...settings, timerMode: v})}>
+                      <Select
+                        value={settings.timerMode}
+                        onValueChange={(v) =>
+                          setSettings((prev) => ({
+                            ...prev,
+                            timerMode: v,
+                          }))
+                        }
+                      >
                         <SelectTrigger className="h-10 rounded-xl text-xs md:text-sm">
                           <SelectValue />
                         </SelectTrigger>
