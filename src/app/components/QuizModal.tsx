@@ -405,10 +405,10 @@ export function QuizModal({
                 className={`
                   relative rounded-3xl overflow-hidden
                   bg-gradient-to-br from-white via-slate-50 to-blue-50/30
-                  border border-gray-200 shadow-xl
-                  transition-all duration-200
+                  border border-gray-200/50 shadow-2xl
+                  transition-shadow duration-300 ease-out
                   ${!isRevealed
-                    ? 'cursor-pointer hover:shadow-2xl active:scale-[0.99]'
+                    ? 'cursor-pointer hover:shadow-3xl active:scale-[0.99]'
                     : 'shadow-xl'
                   }
                 `}
@@ -417,24 +417,19 @@ export function QuizModal({
                 {/* Content */}
                 <div
                   className={`
-                    relative z-10 flex flex-col items-center justify-center px-6 md:px-12 transition-all duration-300
-                    ${isRevealed ? 'py-10 md:py-14' : 'py-16 md:py-24'}
+                    relative z-10 flex flex-col items-center justify-center px-6 md:px-12 transition-[padding] duration-300 ease-out
+                    ${isRevealed ? 'py-12 md:py-[4.5rem]' : 'py-16 md:py-24'}
                   `}
                 >
                   <div className="text-center space-y-6 md:space-y-8 w-full max-w-2xl">
                     {/* Question */}
-                    <div
-                      className={`
-                        font-black tracking-tight bg-gradient-to-br from-gray-900 via-gray-700 to-gray-600 bg-clip-text text-transparent leading-tight break-words transition-all duration-300
-                        ${isRevealed ? 'text-3xl sm:text-4xl md:text-5xl' : 'text-4xl sm:text-5xl md:text-6xl'}
-                      `}
-                    >
+                    <div className="text-4xl sm:text-5xl md:text-6xl font-black tracking-tight bg-gradient-to-br from-gray-900 via-gray-700 to-gray-600 bg-clip-text text-transparent leading-tight break-words">
                       {question}
                     </div>
 
                     {/* Answer (revealed) */}
                     {isRevealed && (
-                      <div className="space-y-4 md:space-y-6 animate-in fade-in duration-300">
+                      <div className="space-y-4 md:space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
                         <div className="h-px bg-gradient-to-r from-transparent via-gray-300 to-transparent" />
                         <div className="text-2xl sm:text-3xl md:text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 break-words">
                           {answer}
@@ -458,10 +453,10 @@ export function QuizModal({
               </div>
 
               {isRevealed && (
-                <div className="grid grid-cols-2 gap-3 md:gap-5 animate-in fade-in duration-300">
+                <div className="grid grid-cols-2 gap-3 md:gap-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
                     <button
                       onClick={handleFlashDontKnow}
-                      className="group relative h-20 sm:h-24 md:h-28 rounded-2xl overflow-hidden transition-all duration-200 hover:scale-[1.02] active:scale-95 shadow-md"
+                      className="group relative h-20 sm:h-24 md:h-28 rounded-2xl overflow-hidden transition-transform duration-300 hover:scale-[1.02] active:scale-95 shadow-lg"
                     >
                       <div className="absolute inset-0 bg-gradient-to-br from-red-50 to-rose-100 opacity-100 group-hover:opacity-90 transition-opacity" />
                       <div className="relative h-full flex flex-col items-center justify-center gap-1.5 md:gap-2">
@@ -472,7 +467,7 @@ export function QuizModal({
 
                     <button
                       onClick={() => handleFlashAnswer(true)}
-                      className="group relative h-20 sm:h-24 md:h-28 rounded-2xl overflow-hidden transition-all duration-200 hover:scale-[1.02] active:scale-95 shadow-md"
+                      className="group relative h-20 sm:h-24 md:h-28 rounded-2xl overflow-hidden transition-transform duration-300 hover:scale-[1.02] active:scale-95 shadow-lg"
                     >
                       <div className="absolute inset-0 bg-gradient-to-br from-emerald-50 to-green-100 opacity-100 group-hover:opacity-90 transition-opacity" />
                       <div className="relative h-full flex flex-col items-center justify-center gap-1.5 md:gap-2">
