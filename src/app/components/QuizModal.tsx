@@ -1,8 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Button } from './ui/button';
-import { Progress } from './ui/progress';
-import { Badge } from './ui/badge';
-import { Volume2, X, Star, BookOpen, ExternalLink } from 'lucide-react';
+import { Volume2, X, Star, BookOpen } from 'lucide-react';
 
 interface Word {
   day: number;
@@ -438,20 +435,19 @@ export function QuizModal({
                         </div>
                       </div>
                     )}
-                  </div>
-
-                  {/* Tap hint (not revealed) */}
-                  {!isRevealed && (
-                    <div className="absolute bottom-7 md:bottom-10 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 transition-opacity duration-300 pointer-events-none opacity-60">
-                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center shadow-lg animate-pulse">
-                        <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                        </svg>
+                    {/* Tap hint (not revealed) */}
+                    {!isRevealed && (
+                      <div className="pt-8 md:pt-12 flex flex-col items-center gap-3 opacity-60">
+                        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center shadow-lg animate-pulse">
+                          <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                          </svg>
+                        </div>
+                        <p className="text-xs md:text-sm font-semibold text-gray-500">카드를 탭하여 뜻 확인</p>
                       </div>
-                      <p className="text-xs md:text-sm font-semibold text-gray-500">카드를 탭하여 뜻 확인</p>
-                    </div>
-                  )}
+                    )}
+                  </div>
                 </div>
               </div>
 
