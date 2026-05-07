@@ -114,13 +114,14 @@ export function QuizModal({
   const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
   const [isCorrect, setIsCorrect] = useState<boolean | null>(null);
   const [choices, setChoices] = useState<string[]>([]);
-  const [perQuestionLeft, setPerQuestionLeft] = useState<number>(0);
-  const [sessionLeft, setSessionLeft] = useState<number>(0);
+  const [perQuestionLeft, setPerQuestionLeft] = useState<number | null>(null);
+  const [sessionLeft, setSessionLeft] = useState<number | null>(null);
   const solvedCountRef = useRef(0);
   const correctCountRef = useRef(0);
   const wrongCountRef = useRef(0);
   const wrongWordsRef = useRef<Word[]>([]);
   const isFinalizedRef = useRef(false);
+  const perQuestionTimerIndexRef = useRef<number | null>(null);
   const [favorites, setFavorites] = useState<Set<string>>(() => {
     const saved = safeStorage.getItem('toeic_favorites');
     if (!saved) {
@@ -157,23 +158,31 @@ export function QuizModal({
   }, [currentIndex, mode, shuffleChoices]);
 
   useEffect(() => {
-    if (!timerOn) return;
-    if (normalizedTimerMode === 'session') {
-      setSessionLeft(sessionSeconds);
+    if (!timerOn || normalizedTimerMode !== 'session') {
+      setSessionLeft(null);
+      return;
     }
+
+    setSessionLeft(sessionSeconds);
   }, [timerOn, normalizedTimerMode, sessionSeconds]);
 
   useEffect(() => {
-    if (!timerOn || normalizedTimerMode !== 'perQuestion') return;
+    if (!timerOn || normalizedTimerMode !== 'perQuestion') {
+      perQuestionTimerIndexRef.current = null;
+      setPerQuestionLeft(null);
+      return;
+    }
+
+    perQuestionTimerIndexRef.current = currentIndex;
     setPerQuestionLeft(perQuestionSeconds);
   }, [timerOn, normalizedTimerMode, perQuestionSeconds, currentIndex]);
 
   useEffect(() => {
     if (!timerOn || normalizedTimerMode !== 'session') return;
-    if (sessionLeft <= 0) return;
+    if (sessionLeft === null || sessionLeft <= 0) return;
 
     const intervalId = window.setInterval(() => {
-      setSessionLeft((prev) => Math.max(prev - 1, 0));
+      setSessionLeft((prev) => (prev === null ? prev : Math.max(prev - 1, 0)));
     }, 1000);
 
     return () => window.clearInterval(intervalId);
@@ -181,10 +190,10 @@ export function QuizModal({
 
   useEffect(() => {
     if (!timerOn || normalizedTimerMode !== 'perQuestion') return;
-    if (perQuestionLeft <= 0) return;
+    if (perQuestionLeft === null || perQuestionLeft <= 0) return;
 
     const intervalId = window.setInterval(() => {
-      setPerQuestionLeft((prev) => Math.max(prev - 1, 0));
+      setPerQuestionLeft((prev) => (prev === null ? prev : Math.max(prev - 1, 0)));
     }, 1000);
 
     return () => window.clearInterval(intervalId);
@@ -193,7 +202,7 @@ export function QuizModal({
   useEffect(() => {
     if (!timerOn || isFinalizedRef.current) return;
 
-    if (normalizedTimerMode === 'session' && sessionLeft === 0) {
+    if (normalizedTimerMode === 'session' && sessionLeft !== null && sessionLeft === 0) {
       isFinalizedRef.current = true;
       // Session 타이머 만료는 "완주"가 아니라 "중간 저장 후 종료" 정책으로 처리한다.
       // 남은 문제는 toeic_resume_v1에 저장되어 이어하기로 재개할 수 있다.
@@ -203,7 +212,14 @@ export function QuizModal({
 
   useEffect(() => {
     if (!timerOn || isFinalizedRef.current) return;
-    if (normalizedTimerMode !== 'perQuestion' || perQuestionLeft !== 0) return;
+    if (
+      normalizedTimerMode !== 'perQuestion' ||
+      perQuestionLeft === null ||
+      perQuestionLeft !== 0 ||
+      perQuestionTimerIndexRef.current !== currentIndex
+    ) {
+      return;
+    }
     if (mode === 'mc' && selectedAnswer !== null) return;
 
     solvedCountRef.current += 1;
@@ -212,7 +228,7 @@ export function QuizModal({
     wrongWordsRef.current = [...wrongWordsRef.current, currentWord];
     emitLiveUpdate();
     nextQuestion();
-  }, [timerOn, normalizedTimerMode, perQuestionLeft, selectedAnswer, mode, currentWord]);
+  }, [timerOn, normalizedTimerMode, perQuestionLeft, selectedAnswer, mode, currentWord, currentIndex]);
 
   const generateChoices = () => {
     const correctAnswer = answer;
@@ -373,14 +389,18 @@ export function QuizModal({
               </div>
               {timerOn && normalizedTimerMode === 'perQuestion' && (
                 <div className="px-3 py-1.5 rounded-full bg-orange-50 border border-orange-200">
-                  <span className="text-xs md:text-sm font-bold text-orange-700">문항 {formatTime(perQuestionLeft)}</span>
+                  <span className="text-xs md:text-sm font-bold text-orange-700">문항 {formatTime(perQuestionLeft ?? perQuestionSeconds)}</span>
                 </div>
               )}
               {timerOn && normalizedTimerMode === 'session' && (
                 <div className="px-3 py-1.5 rounded-full bg-orange-50 border border-orange-200">
-                  <span className="text-xs md:text-sm font-bold text-orange-700">세션 {formatTime(sessionLeft)}</span>
+                  <span className="text-xs md:text-sm font-bold text-orange-700">세션 {formatTime(sessionLeft ?? sessionSeconds)}</span>
                 </div>
               )}
+              {/* TODO: 타이머 동작 확인 후 제거할 임시 디버그 표시 */}
+              <div className="w-full text-[10px] text-gray-400">
+                timerOn: {String(timerOn)} / mode: {normalizedTimerMode} / perQSec: {perQSec} / sessionMin: {sessionMin}
+              </div>
             </div>
             <button
               onClick={handleCloseWithProgressSave}
