@@ -693,12 +693,12 @@ export default function App() {
   const displayedTodayCount = showQuiz
     ? stats.todayCount + liveSessionSolved
     : stats.todayCount;
-  const displayedSessionSolved = showQuiz ? liveSessionSolved : 0;
-  const displayedSessionTotal = showQuiz
-    ? liveSessionTotal
+  const sessionProgressLabel = showQuiz
+    ? `${liveSessionSolved} / ${liveSessionTotal}`
     : hasResumeData
-      ? pendingResumeTotal
-      : 0;
+      ? `이어하기 대기 · 남은 문제 ${pendingResumeTotal}개`
+      : '진행 중인 세션 없음';
+  const hasActiveSessionProgress = showQuiz || hasResumeData;
   const accuracyRate = stats.totalSolved > 0
     ? Math.round((stats.totalCorrect / stats.totalSolved) * 100)
     : 0;
@@ -814,14 +814,29 @@ export default function App() {
 
               <div className="mt-4 rounded-xl bg-gray-50 border border-gray-200 p-3 text-left">
                 <div className="text-xs font-semibold text-gray-500">현재 학습 범위 진행도</div>
-                {displayedSessionTotal > 0 ? (
-                  <div className="text-sm font-bold text-gray-900 mt-1">
-                    {displayedSessionSolved} / {displayedSessionTotal}
-                    {!showQuiz && hasResumeData && ' (이어하기 대기)'}
-                  </div>
-                ) : (
-                  <div className="text-sm text-gray-600 mt-1">진행 중인 세션 없음</div>
-                )}
+                <div className={`text-sm mt-1 ${hasActiveSessionProgress ? 'font-bold text-gray-900' : 'text-gray-600'}`}>
+                  {sessionProgressLabel}
+                </div>
+              </div>
+            </div>
+
+            <div className="rounded-2xl p-4 bg-white border border-gray-200 shadow-sm">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <div>
+                  <div className="text-sm font-semibold text-gray-900">빠른 학습 문제 수</div>
+                  <div className="text-xs text-gray-500 mt-1">Home 탭에서는 선택한 개수만큼 빠르게 학습합니다.</div>
+                </div>
+                <Select value={count} onValueChange={setCount}>
+                  <SelectTrigger className="h-11 rounded-xl border-gray-200 text-sm font-bold sm:w-32">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="10">10문제</SelectItem>
+                    <SelectItem value="20">20문제</SelectItem>
+                    <SelectItem value="30">30문제</SelectItem>
+                    <SelectItem value="50">50문제</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
             </div>
 
@@ -1055,8 +1070,8 @@ export default function App() {
         {currentTab === 'learn' && (
           <div className="max-w-4xl mx-auto space-y-6 md:space-y-8">
             <div className="text-center mb-6 md:mb-12">
-              <h2 className="text-3xl md:text-5xl font-bold text-gray-900 mb-2 md:mb-4">학습 설정</h2>
-              <p className="text-sm md:text-lg text-gray-500">나만의 학습 경험을 만들어보세요</p>
+              <h2 className="text-3xl md:text-5xl font-bold text-gray-900 mb-2 md:mb-4">범위 학습</h2>
+              <p className="text-sm md:text-lg text-gray-500">선택한 DAY와 단어 범위 전체를 학습합니다.</p>
             </div>
 
             {/* DAY 선택 버튼 */}
@@ -1124,21 +1139,6 @@ export default function App() {
                   <SelectContent>
                     <SelectItem value="en2ko">영단어 → 뜻</SelectItem>
                     <SelectItem value="ko2en">뜻 → 영단어</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2 md:space-y-3">
-                <label className="block text-sm font-semibold text-gray-700">문제수</label>
-                <Select value={count} onValueChange={setCount}>
-                  <SelectTrigger className="h-12 md:h-14 rounded-xl border-gray-200 text-sm md:text-base font-medium">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="10">10문제</SelectItem>
-                    <SelectItem value="20">20문제</SelectItem>
-                    <SelectItem value="30">30문제</SelectItem>
-                    <SelectItem value="50">50문제</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -1230,7 +1230,7 @@ export default function App() {
               className="w-full h-14 md:h-16 text-base md:text-lg font-semibold rounded-2xl bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white shadow-2xl shadow-blue-500/30 transition-all duration-300 hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Zap className="w-4 h-4 md:w-5 md:h-5 mr-2" />
-              {isWordsLoading ? '단어 로딩 중...' : '선택한 범위 학습 시작'}
+              {isWordsLoading ? '단어 로딩 중...' : '선택 범위 전체 학습'}
             </Button>
 
             {/* Favorites Section */}
@@ -1704,6 +1704,7 @@ export default function App() {
           onComplete={handleWrittenExamComplete}
           onClose={() => setShowWrittenExam(false)}
           onReviewWrongWords={handleWrittenExamReviewWrongWords}
+          onRegisterWrongWords={(wrongWords) => mergeWrongWords(wrongWords)}
         />
       )}
 
