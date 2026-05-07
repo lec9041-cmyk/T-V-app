@@ -6,6 +6,7 @@ import { Switch } from './components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './components/ui/select';
 import { Separator } from './components/ui/separator';
 import { QuizModal } from './components/QuizModal';
+import { WrittenExamModal } from './components/WrittenExamModal';
 import { DaySelector } from './components/DaySelector';
 import { Play, RotateCcw, Target, TrendingUp, Zap, Volume2, Timer, RefreshCw, Eye, Calendar as CalendarIcon, Home, BookOpen, BarChart3, Settings as SettingsIcon, ChevronDown, Check, Star } from 'lucide-react';
 
@@ -152,8 +153,10 @@ export default function App() {
     return Number.isFinite(parsedGoal) && parsedGoal > 0 ? parsedGoal : 30;
   });
   const [showQuiz, setShowQuiz] = useState(false);
+  const [showWrittenExam, setShowWrittenExam] = useState(false);
   const [showDaySelector, setShowDaySelector] = useState(false);
   const [quizWords, setQuizWords] = useState<Word[]>([]);
+  const [writtenExamWords, setWrittenExamWords] = useState<Word[]>([]);
   const [statsPeriod, setStatsPeriod] = useState<'7' | '30' | 'all'>('7');
   const [hasResumeData, setHasResumeData] = useState(false);
   const [wrongWords, setWrongWords] = useState<Word[]>([]);
@@ -166,6 +169,7 @@ export default function App() {
   const [mode, setMode] = useState('flash');
   const [direction, setDirection] = useState('en2ko');
   const [count, setCount] = useState('30');
+  const [writtenExamCount, setWrittenExamCount] = useState('20');
   const [voice, setVoice] = useState('en-US');
   const [wrongFirst, setWrongFirst] = useState(false);
 
@@ -506,6 +510,36 @@ export default function App() {
     startQuickQuiz();
   };
 
+  const startWrittenExam = () => {
+    if (isWordsLoading) {
+      alert('단어 데이터를 불러오는 중입니다. 잠시 후 다시 시도해주세요.');
+      return;
+    }
+
+    if (selectedDays.length === 0) {
+      alert('DAY를 먼저 선택해주세요!');
+      setShowDaySelector(true);
+      return;
+    }
+
+    const filteredWords = getFilteredWordsBySelection();
+
+    if (filteredWords.length === 0) {
+      alert('선택한 조건에 맞는 단어가 없습니다.');
+      return;
+    }
+
+    const orderedWords = orderWordsForSession(filteredWords);
+    const requestedCount = Number.isFinite(Number(writtenExamCount)) ? Number(writtenExamCount) : 20;
+    const selectedWords = orderedWords.slice(
+      0,
+      Math.min(requestedCount, orderedWords.length)
+    );
+
+    setWrittenExamWords(selectedWords);
+    setShowWrittenExam(true);
+  };
+
   const applySessionStats = (progress: QuizSessionProgress) => {
     if (progress.solvedCount <= 0) return;
 
@@ -629,6 +663,25 @@ export default function App() {
     setLiveSessionSolved(0);
     setLiveSessionTotal(0);
     setShowQuiz(false);
+  };
+
+  const handleWrittenExamComplete = (progress: QuizSessionProgress) => {
+    applySessionStats(progress);
+    mergeWrongWords(progress.wrongWords);
+  };
+
+  const handleWrittenExamReviewWrongWords = (examWrongWords: Word[]) => {
+    if (examWrongWords.length === 0) {
+      alert('복습할 오답이 없습니다.');
+      return;
+    }
+
+    setMode('flash');
+    setQuizWords(examWrongWords);
+    setLiveSessionSolved(0);
+    setLiveSessionTotal(examWrongWords.length);
+    setShowWrittenExam(false);
+    setShowQuiz(true);
   };
 
   const handleLiveSessionUpdate = (progress: { solvedCount: number; correctCount: number; wrongCount: number }) => {
@@ -844,6 +897,36 @@ export default function App() {
                   )}
                 </div>
               )}
+            </div>
+
+            {/* Written Exam CTA */}
+            <div className="rounded-2xl p-4 bg-white border border-gray-200 shadow-sm">
+              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                <div>
+                  <div className="text-sm font-semibold text-gray-900">주관식 시험</div>
+                  <div className="text-xs text-gray-500 mt-1">5문제씩 풀고, 가채점 후 직접 정답 여부를 수정할 수 있어요.</div>
+                </div>
+                <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
+                  <Select value={writtenExamCount} onValueChange={setWrittenExamCount}>
+                    <SelectTrigger className="h-10 rounded-xl text-xs md:text-sm sm:w-28">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="10">10문제</SelectItem>
+                      <SelectItem value="20">20문제</SelectItem>
+                      <SelectItem value="30">30문제</SelectItem>
+                      <SelectItem value="50">50문제</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    onClick={startWrittenExam}
+                    disabled={isWordsLoading}
+                    className="rounded-xl bg-gray-900 hover:bg-gray-800 text-white font-bold"
+                  >
+                    시험 시작
+                  </Button>
+                </div>
+              </div>
             </div>
 
             {/* DAY Selection */}
@@ -1612,6 +1695,17 @@ export default function App() {
           ))}
         </div>
       </nav>
+
+      {/* Written Exam Modal */}
+      {showWrittenExam && (
+        <WrittenExamModal
+          words={writtenExamWords}
+          direction={direction as 'en2ko' | 'ko2en'}
+          onComplete={handleWrittenExamComplete}
+          onClose={() => setShowWrittenExam(false)}
+          onReviewWrongWords={handleWrittenExamReviewWrongWords}
+        />
+      )}
 
       {/* Quiz Modal */}
       {showQuiz && (
