@@ -1,8 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Button } from './ui/button';
-import { Progress } from './ui/progress';
-import { Badge } from './ui/badge';
-import { Volume2, X, Star, BookOpen, ExternalLink } from 'lucide-react';
+import { Volume2, X, Star, BookOpen } from 'lucide-react';
 
 interface Word {
   day: number;
@@ -409,9 +406,9 @@ export function QuizModal({
                   relative rounded-3xl overflow-hidden
                   bg-gradient-to-br from-white via-slate-50 to-blue-50/30
                   border border-gray-200/50 shadow-2xl
-                  transition-all duration-300
+                  transition-shadow duration-300 ease-out
                   ${!isRevealed
-                    ? 'cursor-pointer hover:shadow-3xl hover:scale-[1.01] active:scale-[0.99]'
+                    ? 'cursor-pointer hover:shadow-3xl active:scale-[0.99]'
                     : 'shadow-xl'
                   }
                 `}
@@ -422,44 +419,48 @@ export function QuizModal({
                 <div className="absolute bottom-0 left-0 w-48 h-48 bg-gradient-to-tr from-pink-400/20 to-orange-400/20 rounded-full blur-3xl -ml-24 -mb-24" />
 
                 {/* Content */}
-                <div className="relative z-10 flex flex-col items-center justify-center px-6 py-16 md:px-12 md:py-24">
+                <div
+                  className={`
+                    relative z-10 flex flex-col items-center justify-center px-6 md:px-12 transition-[padding] duration-300 ease-out
+                    ${isRevealed ? 'py-12 md:py-[4.5rem]' : 'py-16 md:py-24'}
+                  `}
+                >
                   <div className="text-center space-y-6 md:space-y-8 w-full max-w-2xl">
                     {/* Question */}
-                    <div className="text-4xl sm:text-5xl md:text-6xl font-black tracking-tight bg-gradient-to-br from-gray-900 via-gray-700 to-gray-600 bg-clip-text text-transparent leading-tight">
+                    <div className="text-4xl sm:text-5xl md:text-6xl font-black tracking-tight bg-gradient-to-br from-gray-900 via-gray-700 to-gray-600 bg-clip-text text-transparent leading-tight break-words">
                       {question}
                     </div>
 
                     {/* Answer (revealed) */}
                     {isRevealed && (
-                      <div className="space-y-4 md:space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                      <div className="space-y-4 md:space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
                         <div className="h-px bg-gradient-to-r from-transparent via-gray-300 to-transparent" />
-                        <div className="text-2xl sm:text-3xl md:text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600">
+                        <div className="text-2xl sm:text-3xl md:text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 break-words">
                           {answer}
                         </div>
                       </div>
                     )}
-                  </div>
-
-                  {/* Tap hint (not revealed) */}
-                  {!isRevealed && (
-                    <div className="absolute bottom-7 md:bottom-10 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 transition-opacity duration-300 pointer-events-none opacity-60">
-                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center shadow-lg animate-pulse">
-                        <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                        </svg>
+                    {/* Tap hint (not revealed) */}
+                    {!isRevealed && (
+                      <div className="pt-8 md:pt-12 flex flex-col items-center gap-3 opacity-60">
+                        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center shadow-lg animate-pulse">
+                          <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                          </svg>
+                        </div>
+                        <p className="text-xs md:text-sm font-semibold text-gray-500">카드를 탭하여 뜻 확인</p>
                       </div>
-                      <p className="text-xs md:text-sm font-semibold text-gray-500">카드를 탭하여 뜻 확인</p>
-                    </div>
-                  )}
+                    )}
+                  </div>
                 </div>
               </div>
 
               {isRevealed && (
-                <div className="grid grid-cols-2 gap-3 md:gap-6 animate-in fade-in slide-in-from-bottom-4 duration-300">
+                <div className="grid grid-cols-2 gap-3 md:gap-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
                     <button
                       onClick={handleFlashDontKnow}
-                      className="group relative h-20 sm:h-24 md:h-28 rounded-2xl overflow-hidden transition-all duration-300 hover:scale-105 active:scale-95 shadow-lg"
+                      className="group relative h-20 sm:h-24 md:h-28 rounded-2xl overflow-hidden transition-transform duration-300 hover:scale-[1.02] active:scale-95 shadow-lg"
                     >
                       <div className="absolute inset-0 bg-gradient-to-br from-red-50 to-rose-100 opacity-100 group-hover:opacity-90 transition-opacity" />
                       <div className="relative h-full flex flex-col items-center justify-center gap-1.5 md:gap-2">
@@ -470,7 +471,7 @@ export function QuizModal({
 
                     <button
                       onClick={() => handleFlashAnswer(true)}
-                      className="group relative h-20 sm:h-24 md:h-28 rounded-2xl overflow-hidden transition-all duration-300 hover:scale-105 active:scale-95 shadow-lg"
+                      className="group relative h-20 sm:h-24 md:h-28 rounded-2xl overflow-hidden transition-transform duration-300 hover:scale-[1.02] active:scale-95 shadow-lg"
                     >
                       <div className="absolute inset-0 bg-gradient-to-br from-emerald-50 to-green-100 opacity-100 group-hover:opacity-90 transition-opacity" />
                       <div className="relative h-full flex flex-col items-center justify-center gap-1.5 md:gap-2">
