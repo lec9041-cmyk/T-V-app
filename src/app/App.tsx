@@ -1443,10 +1443,15 @@ export default function App() {
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
+                          <SelectItem value="3">3초</SelectItem>
                           <SelectItem value="5">5초</SelectItem>
+                          <SelectItem value="7">7초</SelectItem>
                           <SelectItem value="10">10초</SelectItem>
                           <SelectItem value="15">15초</SelectItem>
                           <SelectItem value="20">20초</SelectItem>
+                          <SelectItem value="30">30초</SelectItem>
+                          <SelectItem value="45">45초</SelectItem>
+                          <SelectItem value="60">60초</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
@@ -1457,10 +1462,13 @@ export default function App() {
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
+                          <SelectItem value="1">1분</SelectItem>
                           <SelectItem value="3">3분</SelectItem>
                           <SelectItem value="5">5분</SelectItem>
                           <SelectItem value="10">10분</SelectItem>
                           <SelectItem value="15">15분</SelectItem>
+                          <SelectItem value="20">20분</SelectItem>
+                          <SelectItem value="30">30분</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
