@@ -397,6 +397,10 @@ export function QuizModal({
                   <span className="text-xs md:text-sm font-bold text-orange-700">세션 {formatTime(sessionLeft ?? sessionSeconds)}</span>
                 </div>
               )}
+              {/* TODO: 타이머 동작 확인 후 제거할 임시 디버그 표시 */}
+              <div className="w-full text-[10px] text-gray-400">
+                timerOn: {String(timerOn)} / mode: {normalizedTimerMode} / perQSec: {perQSec} / sessionMin: {sessionMin}
+              </div>
             </div>
             <button
               onClick={handleCloseWithProgressSave}

@@ -189,7 +189,7 @@ export default function App() {
     wrongMark: true,
   });
   const timerSummary = !settings.timerOn
-    ? 'OFF'
+    ? '타이머 OFF'
     : settings.timerMode === 'session'
     ? `세션 ${settings.sessionMin}분`
     : `문항별 ${settings.perQSec}초`;
@@ -473,6 +473,7 @@ export default function App() {
       Math.min(requestedCount, orderedWords.length)
     );
 
+    // 새 빠른 학습은 현재 settings.timerOn/timerMode/perQSec/sessionMin 값을 그대로 QuizModal에 전달한다.
     setQuizWords(selectedWords);
     setLiveSessionSolved(0);
     setLiveSessionTotal(selectedWords.length);
@@ -500,6 +501,7 @@ export default function App() {
 
     const selectedWords = orderWordsForSession(filteredWords);
 
+    // 새 범위 학습은 현재 settings.timerOn/timerMode/perQSec/sessionMin 값을 그대로 QuizModal에 전달한다.
     setQuizWords(selectedWords);
     setLiveSessionSolved(0);
     setLiveSessionTotal(selectedWords.length);
@@ -861,14 +863,52 @@ export default function App() {
                   </div>
                   <div className="text-xs text-gray-500 mt-1">현재 상태: {timerSummary}</div>
                 </div>
-                <Switch checked={settings.timerOn} onCheckedChange={(v) => setSettings({...settings, timerOn: v})} />
+                <Switch
+                  checked={settings.timerOn}
+                  onCheckedChange={(checked) =>
+                    setSettings((prev) => ({
+                      ...prev,
+                      timerOn: checked,
+                    }))
+                  }
+                />
+              </div>
+
+              <button
+                type="button"
+                onClick={() =>
+                  setSettings((prev) => ({
+                    ...prev,
+                    timerOn: !prev.timerOn,
+                  }))
+                }
+                className={`mt-4 w-full rounded-xl py-3 font-bold transition-all duration-200 active:scale-[0.98] ${
+                  settings.timerOn
+                    ? 'bg-orange-500 text-white shadow-md shadow-orange-500/25 hover:bg-orange-600'
+                    : 'bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100'
+                }`}
+              >
+                {settings.timerOn ? '타이머 끄기' : '타이머 켜기'}
+              </button>
+
+              {/* TODO: 타이머 상태 정상 확인 후 제거할 임시 디버그 표시 */}
+              <div className="mt-2 text-xs text-gray-400">
+                timerOn: {String(settings.timerOn)} / timerMode: {settings.timerMode} / perQSec: {settings.perQSec} / sessionMin: {settings.sessionMin}
               </div>
 
               {settings.timerOn && (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4">
                   <div className="space-y-2">
                     <div className="text-xs text-gray-500">타이머 모드</div>
-                    <Select value={settings.timerMode} onValueChange={(v) => setSettings({...settings, timerMode: v})}>
+                    <Select
+                      value={settings.timerMode}
+                      onValueChange={(v) =>
+                        setSettings((prev) => ({
+                          ...prev,
+                          timerMode: v,
+                        }))
+                      }
+                    >
                       <SelectTrigger className="h-10 rounded-xl text-xs md:text-sm">
                         <SelectValue />
                       </SelectTrigger>
@@ -882,7 +922,15 @@ export default function App() {
                   {settings.timerMode === 'perQuestion' && (
                     <div className="space-y-2">
                       <div className="text-xs text-gray-500">문항 제한(초)</div>
-                      <Select value={settings.perQSec} onValueChange={(v) => setSettings({...settings, perQSec: v})}>
+                      <Select
+                        value={settings.perQSec}
+                        onValueChange={(v) =>
+                          setSettings((prev) => ({
+                            ...prev,
+                            perQSec: v,
+                          }))
+                        }
+                      >
                         <SelectTrigger className="h-10 rounded-xl text-xs md:text-sm">
                           <SelectValue />
                         </SelectTrigger>
@@ -898,7 +946,15 @@ export default function App() {
                   {settings.timerMode === 'session' && (
                     <div className="space-y-2">
                       <div className="text-xs text-gray-500">세션 제한(분)</div>
-                      <Select value={settings.sessionMin} onValueChange={(v) => setSettings({...settings, sessionMin: v})}>
+                      <Select
+                        value={settings.sessionMin}
+                        onValueChange={(v) =>
+                          setSettings((prev) => ({
+                            ...prev,
+                            sessionMin: v,
+                          }))
+                        }
+                      >
                         <SelectTrigger className="h-10 rounded-xl text-xs md:text-sm">
                           <SelectValue />
                         </SelectTrigger>
@@ -1493,71 +1549,6 @@ export default function App() {
             </div>
 
             <div className="space-y-6 md:space-y-8">
-              {/* 오늘 목표량 */}
-              <div className="space-y-3 md:space-y-4">
-                <h3 className="text-lg md:text-xl font-bold text-gray-900 flex items-center gap-2">
-                  <div className="w-1 h-5 md:h-6 bg-gradient-to-b from-emerald-500 to-teal-500 rounded-full" />
-                  오늘 목표량
-                </h3>
-
-                <div className="flex items-center justify-between p-4 md:p-6 rounded-2xl bg-gray-50 border border-gray-100">
-                  <div className="flex-1 pr-4">
-                    <div className="font-semibold text-gray-900 mb-1 text-sm md:text-base">일일 목표 문제 수</div>
-                    <div className="text-xs md:text-sm text-gray-500">홈 탭 진행도 기준</div>
-                  </div>
-                  <Select value={String(todayGoal)} onValueChange={updateTodayGoal}>
-                    <SelectTrigger className="w-32 md:w-44 h-10 md:h-11 rounded-xl text-xs md:text-sm">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="10">10문제</SelectItem>
-                      <SelectItem value="20">20문제</SelectItem>
-                      <SelectItem value="30">30문제</SelectItem>
-                      <SelectItem value="50">50문제</SelectItem>
-                      <SelectItem value="100">100문제</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              <Separator />
-
-              {/* 문제 순서 */}
-              <div className="space-y-3 md:space-y-4">
-                <h3 className="text-lg md:text-xl font-bold text-gray-900 flex items-center gap-2">
-                  <div className="w-1 h-5 md:h-6 bg-gradient-to-b from-blue-500 to-purple-500 rounded-full" />
-                  문제 순서
-                </h3>
-
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between p-4 md:p-6 rounded-2xl bg-gray-50 border border-gray-100">
-                    <div className="flex-1 pr-4">
-                      <div className="font-semibold text-gray-900 mb-1 text-sm md:text-base">문제 출제 순서</div>
-                      <div className="text-xs md:text-sm text-gray-500">순서대로 또는 랜덤</div>
-                    </div>
-                    <Select value={settings.orderMode} onValueChange={(v) => setSettings({...settings, orderMode: v})}>
-                      <SelectTrigger className="w-32 md:w-44 h-10 md:h-11 rounded-xl text-xs md:text-sm">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="random">랜덤 🔀</SelectItem>
-                        <SelectItem value="sequential">순서대로 📖</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="flex items-center justify-between p-4 md:p-6 rounded-2xl bg-gray-50 border border-gray-100">
-                    <div>
-                      <div className="font-semibold text-gray-900 mb-1 text-sm md:text-base">4지선다 보기 뒤섞기</div>
-                      <div className="text-xs md:text-sm text-gray-500">보기 순서 무작위</div>
-                    </div>
-                    <Switch checked={settings.shuffleChoices} onCheckedChange={(v) => setSettings({...settings, shuffleChoices: v})} />
-                  </div>
-                </div>
-              </div>
-
-              <Separator />
-
               {/* 타이머 설정 */}
               <div className="rounded-2xl bg-white border border-gray-200 shadow-sm p-4 md:p-6">
                 <div className="flex items-start justify-between gap-4">
@@ -1589,6 +1580,28 @@ export default function App() {
                       }))
                     }
                   />
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() =>
+                    setSettings((prev) => ({
+                      ...prev,
+                      timerOn: !prev.timerOn,
+                    }))
+                  }
+                  className={`mt-5 w-full rounded-xl py-3 font-bold transition-all duration-200 active:scale-[0.98] ${
+                    settings.timerOn
+                      ? 'bg-orange-500 text-white shadow-md shadow-orange-500/25 hover:bg-orange-600'
+                      : 'bg-gray-100 text-gray-800 border border-gray-200 hover:bg-gray-200'
+                  }`}
+                >
+                  {settings.timerOn ? '타이머 끄기' : '타이머 켜기'}
+                </button>
+
+                {/* TODO: 타이머 상태 정상 확인 후 제거할 임시 디버그 표시 */}
+                <div className="mt-2 text-xs text-gray-400">
+                  timerOn: {String(settings.timerOn)} / timerMode: {settings.timerMode} / perQSec: {settings.perQSec} / sessionMin: {settings.sessionMin}
                 </div>
 
                 {settings.timerOn && (
@@ -1664,6 +1677,72 @@ export default function App() {
                   </div>
                 )}
               </div>
+
+              <Separator />
+
+              {/* 오늘 목표량 */}
+              <div className="space-y-3 md:space-y-4">
+                <h3 className="text-lg md:text-xl font-bold text-gray-900 flex items-center gap-2">
+                  <div className="w-1 h-5 md:h-6 bg-gradient-to-b from-emerald-500 to-teal-500 rounded-full" />
+                  오늘 목표량
+                </h3>
+
+                <div className="flex items-center justify-between p-4 md:p-6 rounded-2xl bg-gray-50 border border-gray-100">
+                  <div className="flex-1 pr-4">
+                    <div className="font-semibold text-gray-900 mb-1 text-sm md:text-base">일일 목표 문제 수</div>
+                    <div className="text-xs md:text-sm text-gray-500">홈 탭 진행도 기준</div>
+                  </div>
+                  <Select value={String(todayGoal)} onValueChange={updateTodayGoal}>
+                    <SelectTrigger className="w-32 md:w-44 h-10 md:h-11 rounded-xl text-xs md:text-sm">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="10">10문제</SelectItem>
+                      <SelectItem value="20">20문제</SelectItem>
+                      <SelectItem value="30">30문제</SelectItem>
+                      <SelectItem value="50">50문제</SelectItem>
+                      <SelectItem value="100">100문제</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <Separator />
+
+              {/* 문제 순서 */}
+              <div className="space-y-3 md:space-y-4">
+                <h3 className="text-lg md:text-xl font-bold text-gray-900 flex items-center gap-2">
+                  <div className="w-1 h-5 md:h-6 bg-gradient-to-b from-blue-500 to-purple-500 rounded-full" />
+                  문제 순서
+                </h3>
+
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between p-4 md:p-6 rounded-2xl bg-gray-50 border border-gray-100">
+                    <div className="flex-1 pr-4">
+                      <div className="font-semibold text-gray-900 mb-1 text-sm md:text-base">문제 출제 순서</div>
+                      <div className="text-xs md:text-sm text-gray-500">순서대로 또는 랜덤</div>
+                    </div>
+                    <Select value={settings.orderMode} onValueChange={(v) => setSettings({...settings, orderMode: v})}>
+                      <SelectTrigger className="w-32 md:w-44 h-10 md:h-11 rounded-xl text-xs md:text-sm">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="random">랜덤 🔀</SelectItem>
+                        <SelectItem value="sequential">순서대로 📖</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="flex items-center justify-between p-4 md:p-6 rounded-2xl bg-gray-50 border border-gray-100">
+                    <div>
+                      <div className="font-semibold text-gray-900 mb-1 text-sm md:text-base">4지선다 보기 뒤섞기</div>
+                      <div className="text-xs md:text-sm text-gray-500">보기 순서 무작위</div>
+                    </div>
+                    <Switch checked={settings.shuffleChoices} onCheckedChange={(v) => setSettings({...settings, shuffleChoices: v})} />
+                  </div>
+                </div>
+              </div>
+
             </div>
           </div>
         )}
