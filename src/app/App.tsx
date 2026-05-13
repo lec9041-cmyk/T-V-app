@@ -12,6 +12,8 @@ import { Play, RotateCcw, Target, TrendingUp, Zap, Volume2, Timer, RefreshCw, Ey
 
 const PER_QUESTION_TIMER_OPTIONS = ['3', '5', '7', '10', '15', '20', '30', '45', '60'];
 const SESSION_TIMER_OPTIONS = ['1', '3', '5', '10', '15', '20', '30'];
+const SELECTED_DAYS_STORAGE_KEY = 'toeic_selected_days_v1';
+const DEFAULT_SELECTED_DAYS = [1];
 
 const DAY_CATEGORIES: { [key: number]: string } = {
   1: '채용',
@@ -130,10 +132,41 @@ const safeStorage = {
   },
 };
 
+
+const normalizeSelectedDays = (days: unknown, availableDays?: Set<number>) => {
+  if (!Array.isArray(days)) return [...DEFAULT_SELECTED_DAYS];
+
+  const normalized = Array.from(
+    new Set(
+      days
+        .map((day) => Number(day))
+        .filter((day) => Number.isInteger(day) && day >= 1 && day <= 30)
+    )
+  ).sort((a, b) => a - b);
+
+  const validDays = availableDays
+    ? normalized.filter((day) => availableDays.has(day))
+    : normalized;
+
+  return validDays.length > 0 ? validDays : [...DEFAULT_SELECTED_DAYS];
+};
+
+const loadSavedSelectedDays = () => {
+  const savedDays = safeStorage.getItem(SELECTED_DAYS_STORAGE_KEY);
+  if (!savedDays) return [...DEFAULT_SELECTED_DAYS];
+
+  try {
+    return normalizeSelectedDays(JSON.parse(savedDays));
+  } catch (error) {
+    console.warn('[selection] Failed to parse saved selected days', error);
+    return [...DEFAULT_SELECTED_DAYS];
+  }
+};
+
 export default function App() {
   const [currentTab, setCurrentTab] = useState('home');
   const [words, setWords] = useState<Word[]>([]);
-  const [selectedDays, setSelectedDays] = useState<number[]>([1]);
+  const [selectedDays, setSelectedDays] = useState<number[]>(() => loadSavedSelectedDays());
   const [selectedRanges, setSelectedRanges] = useState<string[]>(['core', 'basic', '800', '900']); // All ranges by default
   const [stats, setStats] = useState<Stats>({
     todayCount: 0,
@@ -194,6 +227,12 @@ export default function App() {
     ? `세션 ${settings.sessionMin}분`
     : `문항별 ${settings.perQSec}초`;
 
+  const updateSelectedDays = (days: number[]) => {
+    const normalizedDays = normalizeSelectedDays(days);
+    setSelectedDays(normalizedDays);
+    safeStorage.setItem(SELECTED_DAYS_STORAGE_KEY, JSON.stringify(normalizedDays));
+  };
+
   // Load data on mount
   useEffect(() => {
     loadStats();
@@ -201,6 +240,20 @@ export default function App() {
     checkResumeData();
     loadWrongWords();
   }, []);
+
+  useEffect(() => {
+    if (isWordsLoading || words.length === 0) return;
+
+    const availableDays = new Set(words.map((word) => word.day));
+    const normalizedDays = normalizeSelectedDays(selectedDays, availableDays);
+    const hasChanged =
+      normalizedDays.length !== selectedDays.length ||
+      normalizedDays.some((day, index) => day !== selectedDays[index]);
+
+    if (hasChanged) {
+      updateSelectedDays(normalizedDays);
+    }
+  }, [isWordsLoading, words, selectedDays]);
 
   const checkResumeData = () => {
     const resumeData = safeStorage.getItem('toeic_resume_v1');
@@ -246,7 +299,7 @@ export default function App() {
   const resumeStudy = () => {
     const resumeData = safeStorage.getItem('toeic_resume_v1');
     if (!resumeData) {
-      alert('이어서 학습할 데이터가 없습니다.');
+      startQuiz();
       return;
     }
 
@@ -257,7 +310,7 @@ export default function App() {
       setMode(safeMode);
       setDirection(data.direction || 'en2ko');
       setCount(data.count?.toString() || '30');
-      setSelectedDays(data.days || [1]);
+      updateSelectedDays(data.days || DEFAULT_SELECTED_DAYS);
       setSelectedRanges(data.ranges || ['core', 'basic', '800', '900']);
       if (data.settings) {
         setSettings({
@@ -274,8 +327,23 @@ export default function App() {
         setQuizWords(data.remainingWords);
         setShowQuiz(true);
       } else {
-        // If no remaining words, just start new quiz with saved settings
-        startQuiz();
+        const savedDays = normalizeSelectedDays(data.days || DEFAULT_SELECTED_DAYS);
+        const savedRanges = Array.isArray(data.ranges) && data.ranges.length > 0
+          ? data.ranges
+          : ['core', 'basic', '800', '900'];
+        const fallbackWords = orderWordsForSession(getFilteredWordsBySelection(savedDays, savedRanges));
+        const requestedCount = Number.isFinite(Number(data.count)) ? Number(data.count) : 30;
+        const selectedWords = fallbackWords.slice(0, Math.min(requestedCount, fallbackWords.length));
+
+        if (selectedWords.length === 0) {
+          alert('선택한 조건에 맞는 단어가 없습니다.');
+          return;
+        }
+
+        setLiveSessionSolved(0);
+        setLiveSessionTotal(selectedWords.length);
+        setQuizWords(selectedWords);
+        setShowQuiz(true);
       }
     } catch (e) {
       alert('이어서 학습 데이터를 불러오는데 실패했습니다.');
@@ -384,7 +452,7 @@ export default function App() {
 
       // Auto-select DAY 1 if no days selected
       if (selectedDays.length === 0) {
-        setSelectedDays([1]);
+        updateSelectedDays(DEFAULT_SELECTED_DAYS);
       }
     } catch (error) {
       console.error('❌ CSV 로드 실패:', error);
@@ -404,7 +472,7 @@ export default function App() {
         { day: 1, no: 10, english: 'hire', korean: '고용하다', index: 9 },
       ];
       setWords(sampleWords);
-      setSelectedDays([1]);
+      updateSelectedDays(DEFAULT_SELECTED_DAYS);
     } finally {
       setIsWordsLoading(false);
     }
@@ -424,11 +492,14 @@ export default function App() {
     }
   };
 
-  const getFilteredWordsBySelection = () => {
-    let filteredWords = words.filter(w => selectedDays.includes(w.day));
+  const getFilteredWordsBySelection = (
+    days = selectedDays,
+    ranges = selectedRanges
+  ) => {
+    let filteredWords = words.filter(w => days.includes(w.day));
 
     filteredWords = filteredWords.filter(w => {
-      return selectedRanges.some(range => {
+      return ranges.some(range => {
         const [min, max] = getWordNumberRange(range);
         return w.no >= min && w.no <= max;
       });
@@ -706,6 +777,28 @@ export default function App() {
     if (words.length === 0 || selectedDays.length === 0) return 0;
     return getFilteredWordsBySelection().length;
   }, [words, selectedDays, selectedRanges]);
+  const isContinueDisabled = (!hasResumeData && (selectedDays.length === 0 || isWordsLoading));
+  const continueStudyDescription = hasResumeData
+    ? `마지막 학습 위치부터 시작${pendingResumeTotal > 0 ? ` · 남은 ${pendingResumeTotal}개` : ''}`
+    : '이어할 학습 기록이 없으면 현재 선택 범위로 시작';
+  const recentStudyTrend = useMemo(() => {
+    const days = Array.from({ length: 7 }, (_, i) => {
+      const date = new Date();
+      date.setDate(date.getDate() - (6 - i));
+      const dateStr = formatDateKey(date);
+      return {
+        dateStr,
+        label: ['일', '월', '화', '수', '목', '금', '토'][date.getDay()],
+        count: stats.dailyLog?.[dateStr] || 0,
+      };
+    });
+    const maxCount = Math.max(...days.map((day) => day.count), 1);
+
+    return days.map((day) => ({
+      ...day,
+      height: day.count > 0 ? Math.max(8, Math.round((day.count / maxCount) * 100)) : 0,
+    }));
+  }, [stats.dailyLog]);
   const allRangesSelected = ['core', 'basic', '800', '900'].every(range => selectedRanges.includes(range));
 
   const wrongWordItems = useMemo(() => {
@@ -851,6 +944,24 @@ export default function App() {
               {isWordsLoading ? '단어 로딩 중...' : '학습 시작'}
             </Button>
 
+            <button
+              onClick={resumeStudy}
+              disabled={isContinueDisabled}
+              className={`w-full rounded-2xl p-4 bg-gradient-to-br from-blue-50 to-indigo-50 hover:from-blue-100 hover:to-indigo-100 border border-blue-200 transition-all duration-200 text-left shadow-sm ${
+                isContinueDisabled ? 'opacity-50 cursor-not-allowed' : 'hover:scale-[1.01] active:scale-[0.99]'
+              }`}
+            >
+              <div className="flex items-center gap-3">
+                <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-gradient-to-r from-blue-500 to-indigo-600 shadow-md flex-shrink-0">
+                  <Play className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <div className="text-sm font-bold text-gray-900">이어서 학습</div>
+                  <div className="text-xs text-gray-500 mt-1">{continueStudyDescription}</div>
+                </div>
+              </div>
+            </button>
+
             {/* Timer Settings Summary */}
             <div className="rounded-2xl p-4 bg-white border border-gray-200 shadow-sm">
               <div className="flex items-center justify-between gap-3">
@@ -955,9 +1066,9 @@ export default function App() {
                       key={day}
                       onClick={() => {
                         if (isSelected) {
-                          setSelectedDays(selectedDays.filter(d => d !== day));
+                          updateSelectedDays(selectedDays.filter(d => d !== day));
                         } else {
-                          setSelectedDays([...selectedDays, day]);
+                          updateSelectedDays([...selectedDays, day]);
                         }
                       }}
                       className={`
@@ -983,50 +1094,42 @@ export default function App() {
 
             {/* 7-Day Trend */}
             <div className="rounded-2xl p-5 bg-white border border-gray-200 shadow-sm">
-              <div className="text-sm font-semibold text-gray-700 mb-3">최근 학습 흐름</div>
-              <div className="flex items-end gap-1.5 h-20">
-                {Array.from({ length: 7 }, (_, i) => {
-                  const date = new Date();
-                  date.setDate(date.getDate() - (6 - i));
-                  const dateStr = formatDateKey(date);
-                  const count = stats.dailyLog[dateStr] || 0;
-                  const maxCount = Math.max(...Object.values(stats.dailyLog), 30);
-                  const height = maxCount > 0 ? (count / maxCount) * 100 : 0;
-
-                  return (
-                    <div key={i} className="flex-1 flex flex-col items-center gap-1">
-                      <div className="w-full bg-gray-100 rounded-t-lg overflow-hidden" style={{ height: '60px' }}>
-                        <div
-                          className="w-full bg-gradient-to-t from-blue-500 to-purple-500 rounded-t-lg transition-all duration-500"
-                          style={{ height: `${height}%`, marginTop: `${100 - height}%` }}
-                        />
-                      </div>
-                      <div className="text-[10px] font-medium text-gray-400">
-                        {['일','월','화','수','목','금','토'][date.getDay()]}
-                      </div>
+              <div className="text-sm font-semibold text-gray-700 mb-4">최근 학습 흐름</div>
+              <div className="flex items-end gap-2 h-24 px-1">
+                {recentStudyTrend.map((day) => (
+                  <div key={day.dateStr} className="flex-1 h-full flex flex-col items-center justify-end gap-2 min-w-0">
+                    <div className="w-full h-16 flex items-end justify-center rounded-t-lg bg-gray-100 overflow-hidden">
+                      <div
+                        className="w-full bg-gradient-to-t from-blue-500 to-purple-500 rounded-t-lg transition-all duration-500"
+                        style={{ height: `${day.height}%`, minHeight: day.count > 0 ? '6px' : '0px' }}
+                        title={`${day.dateStr}: ${day.count}개`}
+                      />
                     </div>
-                  );
-                })}
+                    <div className="h-4 leading-4 text-[10px] font-medium text-gray-400">
+                      {day.label}
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
 
             {/* Quick Actions */}
             <div className="grid grid-cols-2 gap-3">
               <button
-                onClick={hasResumeData ? resumeStudy : startQuiz}
-                disabled={(!hasResumeData && selectedDays.length === 0) || (!hasResumeData && isWordsLoading)}
+                onClick={startQuiz}
+                disabled={selectedDays.length === 0 || isWordsLoading}
                 className={`rounded-2xl p-5 bg-gradient-to-br from-blue-50 to-indigo-50 hover:from-blue-100 hover:to-indigo-100 border border-blue-200 transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] text-left shadow-sm ${
-                  (!hasResumeData && selectedDays.length === 0) || (!hasResumeData && isWordsLoading) ? 'opacity-50 cursor-not-allowed' : ''
+                  selectedDays.length === 0 || isWordsLoading ? 'opacity-50 cursor-not-allowed' : ''
                 }`}
               >
                 <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-gradient-to-r from-blue-500 to-indigo-600 mb-3 shadow-md">
                   <Play className="w-5 h-5 text-white" />
                 </div>
                 <div className="text-sm font-bold text-gray-900">
-                  {hasResumeData ? '이어서 학습' : '새로 학습'}
+                  빠른 학습
                 </div>
                 <div className="text-xs text-gray-500 mt-1">
-                  {hasResumeData ? '저장된 위치부터' : isWordsLoading ? '단어 로딩 중...' : '지금 바로 시작'}
+                  {isWordsLoading ? '단어 로딩 중...' : '선택 개수만큼 시작'}
                 </div>
               </button>
 
@@ -1232,6 +1335,24 @@ export default function App() {
               <Zap className="w-4 h-4 md:w-5 md:h-5 mr-2" />
               {isWordsLoading ? '단어 로딩 중...' : '선택 범위 전체 학습'}
             </Button>
+
+            <button
+              onClick={resumeStudy}
+              disabled={isContinueDisabled}
+              className={`w-full rounded-2xl p-4 bg-gradient-to-br from-blue-50 to-indigo-50 hover:from-blue-100 hover:to-indigo-100 border border-blue-200 transition-all duration-200 text-left shadow-sm ${
+                isContinueDisabled ? 'opacity-50 cursor-not-allowed' : 'hover:scale-[1.01] active:scale-[0.99]'
+              }`}
+            >
+              <div className="flex items-center gap-3">
+                <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-gradient-to-r from-blue-500 to-indigo-600 shadow-md flex-shrink-0">
+                  <Play className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <div className="text-sm font-bold text-gray-900">이어서 학습</div>
+                  <div className="text-xs text-gray-500 mt-1">{continueStudyDescription}</div>
+                </div>
+              </div>
+            </button>
 
             {/* Favorites Section */}
             {(() => {
@@ -1729,7 +1850,7 @@ export default function App() {
       {showDaySelector && (
         <DaySelector
           selectedDays={selectedDays}
-          onDaysChange={setSelectedDays}
+          onDaysChange={updateSelectedDays}
           onClose={() => setShowDaySelector(false)}
         />
       )}
