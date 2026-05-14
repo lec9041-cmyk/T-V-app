@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Volume2, X, Star, BookOpen } from 'lucide-react';
+import { Volume2, X, Star, BookOpen, Clock } from 'lucide-react';
 
 interface Word {
   day: number;
@@ -8,6 +8,8 @@ interface Word {
   korean: string;
   index: number;
 }
+
+const STUDY_IDLE_TIMEOUT_MS = 3 * 60 * 1000;
 
 const DAY_CATEGORIES: { [key: number]: string } = {
   1: '채용',
@@ -42,6 +44,17 @@ const DAY_CATEGORIES: { [key: number]: string } = {
   30: '건강',
 };
 
+interface QuizProgressPayload {
+  solvedCount: number;
+  correctCount: number;
+  wrongCount: number;
+  wrongWords: Word[];
+  completed: boolean;
+  currentIndex: number;
+  remainingWords: Word[];
+  studyTimeSeconds: number;
+}
+
 interface QuizModalProps {
   words: Word[];
   mode: 'flash' | 'mc';
@@ -56,24 +69,8 @@ interface QuizModalProps {
     correctCount: number;
     wrongCount: number;
   }) => void;
-  onProgressSave: (stats: {
-    solvedCount: number;
-    correctCount: number;
-    wrongCount: number;
-    wrongWords: Word[];
-    completed: boolean;
-    currentIndex: number;
-    remainingWords: Word[];
-  }) => void;
-  onComplete: (stats: {
-    solvedCount: number;
-    correctCount: number;
-    wrongCount: number;
-    wrongWords: Word[];
-    completed: boolean;
-    currentIndex: number;
-    remainingWords: Word[];
-  }) => void;
+  onProgressSave: (stats: QuizProgressPayload) => void;
+  onComplete: (stats: QuizProgressPayload) => void;
 }
 
 const safeStorage = {
@@ -120,6 +117,10 @@ export function QuizModal({
   const correctCountRef = useRef(0);
   const wrongCountRef = useRef(0);
   const wrongWordsRef = useRef<Word[]>([]);
+  const studyElapsedMsRef = useRef(0);
+  const activeStartedAtRef = useRef<number | null>(null);
+  const idleTimeoutRef = useRef<number | null>(null);
+  const [displayStudySeconds, setDisplayStudySeconds] = useState(0);
   const isFinalizedRef = useRef(false);
   const perQuestionTimerIndexRef = useRef<number | null>(null);
   const [favorites, setFavorites] = useState<Set<string>>(() => {
@@ -137,6 +138,44 @@ export function QuizModal({
     }
   });
 
+
+  const updateDisplayedStudySeconds = () => {
+    const activeMs = activeStartedAtRef.current === null ? 0 : Date.now() - activeStartedAtRef.current;
+    setDisplayStudySeconds(Math.floor((studyElapsedMsRef.current + activeMs) / 1000));
+  };
+
+  const pauseStudyTimer = () => {
+    if (activeStartedAtRef.current === null) return;
+    studyElapsedMsRef.current += Date.now() - activeStartedAtRef.current;
+    activeStartedAtRef.current = null;
+    updateDisplayedStudySeconds();
+  };
+
+  const clearIdleTimer = () => {
+    if (idleTimeoutRef.current === null) return;
+    window.clearTimeout(idleTimeoutRef.current);
+    idleTimeoutRef.current = null;
+  };
+
+  const markStudyActivity = () => {
+    if (isFinalizedRef.current) return;
+    if (activeStartedAtRef.current === null) {
+      activeStartedAtRef.current = Date.now();
+    }
+    clearIdleTimer();
+    idleTimeoutRef.current = window.setTimeout(() => {
+      pauseStudyTimer();
+      idleTimeoutRef.current = null;
+    }, STUDY_IDLE_TIMEOUT_MS);
+    updateDisplayedStudySeconds();
+  };
+
+  const finalizeStudyTimer = () => {
+    clearIdleTimer();
+    pauseStudyTimer();
+    return Math.floor(studyElapsedMsRef.current / 1000);
+  };
+
   const currentWord = words[currentIndex];
   const question = direction === 'en2ko' ? currentWord?.english : currentWord?.korean;
   const answer = direction === 'en2ko' ? currentWord?.korean : currentWord?.english;
@@ -150,6 +189,17 @@ export function QuizModal({
       wrongCount: wrongCountRef.current,
     });
   };
+
+  useEffect(() => {
+    markStudyActivity();
+
+    const displayIntervalId = window.setInterval(updateDisplayedStudySeconds, 1000);
+
+    return () => {
+      window.clearInterval(displayIntervalId);
+      clearIdleTimer();
+    };
+  }, []);
 
   useEffect(() => {
     if (mode === 'mc' && currentWord) {
@@ -271,6 +321,7 @@ export function QuizModal({
   };
 
   const handleFlashReveal = () => {
+    markStudyActivity();
     setIsRevealed(true);
     // Auto-play pronunciation when revealing
     if (direction === 'en2ko') {
@@ -280,6 +331,7 @@ export function QuizModal({
 
   const handleFlashAnswer = (knowIt: boolean) => {
     if (isFinalizedRef.current) return;
+    markStudyActivity();
     solvedCountRef.current += 1;
     if (knowIt) {
       correctCountRef.current += 1;
@@ -301,6 +353,7 @@ export function QuizModal({
   };
 
   const handleMCAnswer = (choice: string) => {
+    markStudyActivity();
     solvedCountRef.current += 1;
     setSelectedAnswer(choice);
     const correct = choice === answer;
@@ -322,7 +375,7 @@ export function QuizModal({
     }, 1200);
   };
 
-  const buildProgressPayload = (completed: boolean) => {
+  const buildProgressPayload = (completed: boolean, studyTimeSeconds = finalizeStudyTimer()) => {
     const hasAnsweredCurrent = mode === 'mc' && selectedAnswer !== null;
     const resumeIndex = completed ? words.length : currentIndex + (hasAnsweredCurrent ? 1 : 0);
     const remainingWords = words.slice(resumeIndex);
@@ -335,6 +388,7 @@ export function QuizModal({
       completed,
       currentIndex: resumeIndex,
       remainingWords,
+      studyTimeSeconds,
     };
   };
 
@@ -366,6 +420,12 @@ export function QuizModal({
     return `${String(min).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
   };
 
+  const formatStudyDuration = (totalSec: number) => {
+    const min = Math.floor(totalSec / 60);
+    const sec = totalSec % 60;
+    return `${String(min).padStart(2, '0')}분 ${String(sec).padStart(2, '0')}초`;
+  };
+
   return (
     <div className="fixed inset-0 z-50 bg-black/55 backdrop-blur-sm flex items-center justify-center p-3 md:p-4">
       <div className="w-full max-w-2xl bg-white rounded-3xl shadow-2xl overflow-hidden max-h-[95vh] flex flex-col">
@@ -386,6 +446,11 @@ export function QuizModal({
               </div>
               <div className="px-3 py-1.5 rounded-full bg-red-50 border border-red-200">
                 <span className="text-xs md:text-sm font-bold text-red-700">✗ {wrongCount}</span>
+              </div>
+              <div className="px-3 py-1.5 rounded-full bg-slate-50 border border-slate-200">
+                <span className="text-xs md:text-sm font-bold text-slate-700 flex items-center gap-1">
+                  <Clock className="w-3.5 h-3.5" /> {formatStudyDuration(displayStudySeconds)}
+                </span>
               </div>
               {timerOn && normalizedTimerMode === 'perQuestion' && (
                 <div className="px-3 py-1.5 rounded-full bg-orange-50 border border-orange-200">
@@ -567,14 +632,20 @@ export function QuizModal({
           {/* Action buttons */}
           <div className="flex gap-2 md:gap-3 mt-6 md:mt-8">
             <button
-              onClick={() => speak(currentWord.english)}
+              onClick={() => {
+                markStudyActivity();
+                speak(currentWord.english);
+              }}
               className="flex-1 flex flex-col md:flex-row items-center justify-center gap-1 md:gap-2 py-3 rounded-xl bg-gray-50 hover:bg-gray-100 border border-gray-200 transition-all duration-200 active:scale-95"
             >
               <Volume2 className="w-4 h-4 text-gray-600" />
               <span className="text-xs md:text-sm font-semibold text-gray-700">발음</span>
             </button>
             <button
-              onClick={() => toggleFavorite(currentWord.english)}
+              onClick={() => {
+                markStudyActivity();
+                toggleFavorite(currentWord.english);
+              }}
               className={`flex-1 flex flex-col md:flex-row items-center justify-center gap-1 md:gap-2 py-3 rounded-xl border transition-all duration-200 active:scale-95 ${
                 favorites.has(currentWord.english)
                   ? 'bg-yellow-50 border-yellow-300 hover:bg-yellow-100'
@@ -587,7 +658,10 @@ export function QuizModal({
               </span>
             </button>
             <button
-              onClick={() => openNaverDict(currentWord.english)}
+              onClick={() => {
+                markStudyActivity();
+                openNaverDict(currentWord.english);
+              }}
               className="flex-1 flex flex-col md:flex-row items-center justify-center gap-1 md:gap-2 py-3 rounded-xl bg-gray-50 hover:bg-gray-100 border border-gray-200 transition-all duration-200 active:scale-95"
             >
               <BookOpen className="w-4 h-4 text-gray-600" />

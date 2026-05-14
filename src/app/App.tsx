@@ -13,6 +13,7 @@ import { Play, RotateCcw, Target, TrendingUp, Zap, Volume2, Timer, RefreshCw, Ey
 const PER_QUESTION_TIMER_OPTIONS = ['3', '5', '7', '10', '15', '20', '30', '45', '60'];
 const SESSION_TIMER_OPTIONS = ['1', '3', '5', '10', '15', '20', '30'];
 const SELECTED_DAYS_STORAGE_KEY = 'toeic_selected_days_v1';
+const STUDY_TIME_LOG_STORAGE_KEY = 'toeic_study_time_log_v1';
 const DEFAULT_SELECTED_DAYS = [1];
 
 const DAY_CATEGORIES: { [key: number]: string } = {
@@ -76,6 +77,15 @@ interface QuizSessionProgress {
   completed: boolean;
   currentIndex: number;
   remainingWords: Word[];
+  studyTimeSeconds?: number;
+}
+
+interface StudyTimeLogEntry {
+  date: string;
+  dayNumbers: number[];
+  studyTimeSeconds: number;
+  wordCount: number;
+  savedAt: string;
 }
 
 interface Settings {
@@ -197,6 +207,8 @@ export default function App() {
   const [liveSessionTotal, setLiveSessionTotal] = useState(0);
   const [pendingResumeTotal, setPendingResumeTotal] = useState(0);
   const [isWordsLoading, setIsWordsLoading] = useState(true);
+  const [studyTimeLog, setStudyTimeLog] = useState<StudyTimeLogEntry[]>([]);
+  const [completedStudySeconds, setCompletedStudySeconds] = useState<number | null>(null);
 
   // Learning settings
   const [mode, setMode] = useState('flash');
@@ -239,6 +251,7 @@ export default function App() {
     loadSampleWords();
     checkResumeData();
     loadWrongWords();
+    loadStudyTimeLog();
   }, []);
 
   useEffect(() => {
@@ -289,6 +302,53 @@ export default function App() {
     }
   };
 
+  const loadStudyTimeLog = () => {
+    const savedLog = safeStorage.getItem(STUDY_TIME_LOG_STORAGE_KEY);
+    if (!savedLog) return;
+
+    try {
+      const parsed = JSON.parse(savedLog);
+      const normalized = Array.isArray(parsed)
+        ? parsed
+            .map((entry) => ({
+              date: typeof entry.date === 'string' ? entry.date : '',
+              dayNumbers: Array.isArray(entry.dayNumbers)
+                ? entry.dayNumbers.filter((day: unknown) => Number.isInteger(Number(day))).map(Number)
+                : [],
+              studyTimeSeconds: Number(entry.studyTimeSeconds) || 0,
+              wordCount: Number(entry.wordCount) || 0,
+              savedAt: typeof entry.savedAt === 'string' ? entry.savedAt : new Date().toISOString(),
+            }))
+            .filter((entry) => entry.date && entry.studyTimeSeconds > 0)
+        : [];
+      setStudyTimeLog(normalized);
+    } catch (error) {
+      console.warn('[study-time] Failed to parse toeic_study_time_log_v1', error);
+      setStudyTimeLog([]);
+    }
+  };
+
+  const saveStudyTime = (progress: QuizSessionProgress) => {
+    const studyTimeSeconds = progress.studyTimeSeconds || 0;
+    if (studyTimeSeconds <= 0) return;
+
+    const today = formatDateKey();
+    const studiedWords = quizWords.length - progress.remainingWords.length;
+    const entry: StudyTimeLogEntry = {
+      date: today,
+      dayNumbers: Array.from(new Set(quizWords.map((word) => word.day))).sort((a, b) => a - b),
+      studyTimeSeconds,
+      wordCount: Math.max(progress.solvedCount, studiedWords),
+      savedAt: new Date().toISOString(),
+    };
+
+    setStudyTimeLog((prevLog) => {
+      const nextLog = [...prevLog, entry];
+      safeStorage.setItem(STUDY_TIME_LOG_STORAGE_KEY, JSON.stringify(nextLog));
+      return nextLog;
+    });
+  };
+
   const updateTodayGoal = (value: string) => {
     const parsedGoal = Number(value);
     if (!Number.isFinite(parsedGoal) || parsedGoal <= 0) return;
@@ -325,6 +385,7 @@ export default function App() {
         setLiveSessionTotal(data.remainingWords.length);
         setPendingResumeTotal(0);
         setQuizWords(data.remainingWords);
+        setCompletedStudySeconds(null);
         setShowQuiz(true);
       } else {
         const savedDays = normalizeSelectedDays(data.days || DEFAULT_SELECTED_DAYS);
@@ -343,6 +404,7 @@ export default function App() {
         setLiveSessionSolved(0);
         setLiveSessionTotal(selectedWords.length);
         setQuizWords(selectedWords);
+        setCompletedStudySeconds(null);
         setShowQuiz(true);
       }
     } catch (e) {
@@ -365,6 +427,7 @@ export default function App() {
     );
     setLiveSessionSolved(0);
     setLiveSessionTotal(Math.min(30, wrongWords.length));
+    setCompletedStudySeconds(null);
     setShowQuiz(true);
   };
 
@@ -547,6 +610,7 @@ export default function App() {
     setQuizWords(selectedWords);
     setLiveSessionSolved(0);
     setLiveSessionTotal(selectedWords.length);
+    setCompletedStudySeconds(null);
     setShowQuiz(true);
   };
 
@@ -574,6 +638,7 @@ export default function App() {
     setQuizWords(selectedWords);
     setLiveSessionSolved(0);
     setLiveSessionTotal(selectedWords.length);
+    setCompletedStudySeconds(null);
     setShowQuiz(true);
   };
 
@@ -714,6 +779,7 @@ export default function App() {
   };
 
   const handleQuizProgressSave = (progress: QuizSessionProgress) => {
+    saveStudyTime(progress);
     applySessionStats(progress);
     mergeWrongWords(progress.wrongWords);
     saveResumeData(progress);
@@ -723,6 +789,8 @@ export default function App() {
   };
 
   const handleQuizComplete = (progress: QuizSessionProgress) => {
+    saveStudyTime(progress);
+    setCompletedStudySeconds(progress.studyTimeSeconds || 0);
     applySessionStats(progress);
     mergeWrongWords(progress.wrongWords);
 
@@ -752,6 +820,7 @@ export default function App() {
     setLiveSessionSolved(0);
     setLiveSessionTotal(examWrongWords.length);
     setShowWrittenExam(false);
+    setCompletedStudySeconds(null);
     setShowQuiz(true);
   };
 
@@ -761,6 +830,20 @@ export default function App() {
 
   // 저장값(stats.todayCount)은 완료/중간저장 시점에만 갱신하고,
   // 홈 상단 "오늘 목표"에는 퀴즈 진행 중 임시 진행량(liveSessionSolved)만 표시 보정한다.
+  const todayStudySeconds = useMemo(() => {
+    const today = formatDateKey();
+    return studyTimeLog.reduce(
+      (total, entry) => total + (entry.date === today ? entry.studyTimeSeconds : 0),
+      0
+    );
+  }, [studyTimeLog]);
+
+  const formatStudyDuration = (totalSec: number) => {
+    const min = Math.floor(totalSec / 60);
+    const sec = totalSec % 60;
+    return `${String(min).padStart(2, '0')}분 ${String(sec).padStart(2, '0')}초`;
+  };
+
   const displayedTodayCount = showQuiz
     ? stats.todayCount + liveSessionSolved
     : stats.todayCount;
@@ -905,10 +988,16 @@ export default function App() {
                 </div>
               </div>
 
-              <div className="mt-4 rounded-xl bg-gray-50 border border-gray-200 p-3 text-left">
-                <div className="text-xs font-semibold text-gray-500">현재 학습 범위 진행도</div>
-                <div className={`text-sm mt-1 ${hasActiveSessionProgress ? 'font-bold text-gray-900' : 'text-gray-600'}`}>
-                  {sessionProgressLabel}
+              <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3 text-left">
+                <div className="rounded-xl bg-gray-50 border border-gray-200 p-3">
+                  <div className="text-xs font-semibold text-gray-500">현재 학습 범위 진행도</div>
+                  <div className={`text-sm mt-1 ${hasActiveSessionProgress ? 'font-bold text-gray-900' : 'text-gray-600'}`}>
+                    {sessionProgressLabel}
+                  </div>
+                </div>
+                <div className="rounded-xl bg-blue-50 border border-blue-200 p-3">
+                  <div className="text-xs font-semibold text-blue-600">오늘 공부시간</div>
+                  <div className="text-sm mt-1 font-bold text-blue-900">{formatStudyDuration(todayStudySeconds)}</div>
                 </div>
               </div>
             </div>
@@ -1844,6 +1933,29 @@ export default function App() {
           onProgressSave={handleQuizProgressSave}
           onComplete={handleQuizComplete}
         />
+      )}
+
+
+      {/* Study Completion Summary */}
+      {completedStudySeconds !== null && (
+        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="w-full max-w-sm rounded-3xl bg-white shadow-2xl border border-gray-100 p-6 text-center">
+            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-50 border border-blue-200">
+              <Timer className="w-7 h-7 text-blue-600" />
+            </div>
+            <div className="text-lg font-bold text-gray-900">학습 완료!</div>
+            <div className="text-xs text-gray-500 mt-1">이번 학습 세션 공부시간</div>
+            <div className="mt-4 text-3xl font-black bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+              {formatStudyDuration(completedStudySeconds)}
+            </div>
+            <Button
+              onClick={() => setCompletedStudySeconds(null)}
+              className="mt-6 w-full rounded-2xl bg-gray-900 hover:bg-gray-800 text-white font-bold"
+            >
+              확인
+            </Button>
+          </div>
+        </div>
       )}
 
       {/* Day Selector Modal */}
